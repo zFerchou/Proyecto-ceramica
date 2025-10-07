@@ -1,5 +1,6 @@
 import express from "express";
 import productoRoutes from "./routes/productoRoutes.js";
+import ventaRoutes from './routes/ventaRoutes.js';
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
 
@@ -13,6 +14,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 
 // Rutas
 app.use("/api/productos", productoRoutes);
+app.use('/ventas', ventaRoutes);
 
 // Middleware para interceptar errores de parseo JSON y devolver JSON legible
 app.use((err, req, res, next) => {
