@@ -1,6 +1,7 @@
 // src/routes/productoRoutes.js
 import express from "express";
 import { crearProducto, actualizarStock, eliminarProducto, actualizarDetalles } from "../controllers/productoController.js";
+import { actualizarStockPorCodigo } from "../controllers/productoController.js";
 
 const router = express.Router();
 
@@ -145,5 +146,38 @@ router.patch("/:id_producto", actualizarDetalles);
  *         description: Bad Request - cantidad debe ser un entero mayor que 0. No se permiten 0 ni negativos.
  */
 router.put("/:id_producto/stock", actualizarStock);
+
+/**
+ * @swagger
+ * /api/productos/stock-por-codigo:
+ *   post:
+ *     summary: Actualizar stock usando codigo de barras
+ *     tags: [Productos]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               codigo:
+ *                 type: string
+ *               cantidad:
+ *                 type: integer
+ *           examples:
+ *             ejemplo:
+ *               summary: Incrementar stock por codigo
+ *               value:
+ *                 codigo: "abc-123"
+ *                 cantidad: 5
+ *     responses:
+ *       200:
+ *         description: Stock actualizado correctamente.
+ *       400:
+ *         description: Bad Request - codigo o cantidad inválidos.
+ *       404:
+ *         description: Producto no encontrado para el codigo proporcionado.
+ */
+router.post('/stock-por-codigo', actualizarStockPorCodigo);
 
 export default router;

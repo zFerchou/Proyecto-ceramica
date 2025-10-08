@@ -176,6 +176,37 @@ export const actualizarStock = async (req, res) => {
   }
 };
 
+// Actualizar stock usando codigo de barras (busca id_producto por codigo)
+export const actualizarStockPorCodigo = async (req, res) => {
+  const { codigo, cantidad } = req.body;
+  if (!codigo || typeof codigo !== 'string') return res.status(400).json({ error: 'codigo is required and must be a string' });
+  if (cantidad === undefined || typeof cantidad !== 'number' || !Number.isInteger(cantidad) || cantidad <= 0) return res.status(400).json({ error: 'cantidad is required and must be a positive integer greater than 0' });
+
+  try {
+    const prod = await pool.query(`SELECT p.id_producto FROM producto p JOIN codigo_barras c ON p.id_producto = c.id_producto WHERE c.codigo = $1`, [codigo]);
+    if (prod.rowCount === 0) return res.status(404).json({ error: 'Producto no encontrado para el codigo proporcionado' });
+    const id_producto = prod.rows[0].id_producto;
+
+    // Reuse actualizarStock logic: update cantidad by id_producto
+    const producto = await pool.query(`SELECT cantidad FROM producto WHERE id_producto = $1`, [id_producto]);
+    const current = producto.rows[0].cantidad;
+    const nuevaCantidad = current + cantidad;
+    const update = await pool.query(`UPDATE producto SET cantidad = $1 WHERE id_producto = $2 RETURNING cantidad`, [nuevaCantidad, id_producto]);
+    return res.json({ message: 'Stock actualizado correctamente', nuevaCantidad: update.rows[0].cantidad });
+  } catch (error) {
+    console.error('actualizarStockPorCodigo error:', error && error.message ? error.message : error, error && error.code ? `code=${error.code}` : '');
+    if (error && error.code) {
+      switch (error.code) {
+        case '42P01':
+          return res.status(500).json({ error: 'Database table not found' });
+        default:
+          return res.status(500).json({ error: 'Database error', code: error.code });
+      }
+    }
+    return res.status(500).json({ error: 'Unexpected error while updating stock by codigo' });
+  }
+};
+
 // Eliminar un producto por id
 export const eliminarProducto = async (req, res) => {
   const { id_producto } = req.params;
