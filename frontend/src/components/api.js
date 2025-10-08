@@ -47,4 +47,32 @@ export async function patchActualizarDetalles(id_producto, data) {
   return res;
 }
 
-export default { postProducto, putActualizarStock, postActualizarStockPorCodigo, getProductos, deleteProducto, patchActualizarDetalles };
+// --- Ventas (Sales) API helpers
+export async function postVenta(payload) {
+  return fetch('http://localhost:3000/ventas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(r => r.json());
+}
+
+export async function getVenta(query) {
+  const qs = new URLSearchParams(query).toString();
+  return fetch(`http://localhost:3000/ventas?${qs}`).then(r => r.json());
+}
+
+export async function deleteVenta(id_venta) {
+  return fetch(`http://localhost:3000/ventas/${id_venta}`, { method: 'DELETE' }).then(r => r.json());
+}
+
+export async function patchAnularProductos(id_venta, payload) {
+  return fetch(`http://localhost:3000/ventas/${id_venta}/productos`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(r => r.json());
+}
+
+const api = { postProducto, putActualizarStock, postActualizarStockPorCodigo, getProductos, deleteProducto, patchActualizarDetalles, postVenta, getVenta, deleteVenta, patchAnularProductos };
+
+export default api;
