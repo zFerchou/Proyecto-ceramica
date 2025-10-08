@@ -42,7 +42,7 @@ export const crearVenta = async (req, res) => {
       }
 
       const productoCheck = await client.query(
-        `SELECT id_producto, cantidad FROM producto WHERE nombre = $1`,
+        `SELECT id_producto, cantidad, precio FROM producto WHERE nombre = $1`,
         [nombre_producto]
       );
       if (productoCheck.rowCount === 0) {
@@ -50,7 +50,7 @@ export const crearVenta = async (req, res) => {
         return res.status(404).json({ error: `Producto con nombre "${nombre_producto}" no encontrado` });
       }
 
-      const { id_producto, cantidad: stockActual } = productoCheck.rows[0];
+      const { id_producto, cantidad: stockActual, precio } = productoCheck.rows[0];
       if (stockActual < cantidad) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `Stock insuficiente para el producto "${nombre_producto}"` });
@@ -66,8 +66,29 @@ export const crearVenta = async (req, res) => {
       );
     }
 
+    // Obtener productos con precio para la respuesta
+    const productosConPrecio = [];
+    for (const p of productos) {
+      const prodCheck = await client.query(
+        `SELECT precio FROM producto WHERE nombre = $1`,
+        [p.nombre_producto]
+      );
+      productosConPrecio.push({
+        nombre_producto: p.nombre_producto,
+        cantidad: p.cantidad,
+        precio: prodCheck.rows[0].precio
+      });
+    }
+
     await client.query('COMMIT');
-    return res.status(201).json({ mensaje: 'Venta registrada exitosamente', id_venta, id_ticket, codigo_venta, fecha, productos });
+    return res.status(201).json({
+      mensaje: 'Venta registrada exitosamente',
+      id_venta,
+      id_ticket,
+      codigo_venta,
+      fecha,
+      productos: productosConPrecio
+    });
 
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -77,6 +98,7 @@ export const crearVenta = async (req, res) => {
     client.release();
   }
 };
+
 
 // Consultar venta por id_venta o codigo_venta
 export const obtenerVenta = async (req, res) => {
@@ -153,8 +175,6 @@ export const deshacerVenta = async (req, res) => {
   }
 };
 
-// --- NUEVOS ENDPOINTS ---
-
 // Actualizar venta (PUT /ventas/:id_venta)
 export const actualizarVenta = async (req, res) => {
   const { id_venta } = req.params;
@@ -227,7 +247,7 @@ export const anularProductos = async (req, res) => {
 
     for (const p of productos) {
       const { nombre_producto, cantidad } = p;
-      const prodResult = await client.query(`SELECT id_producto FROM producto WHERE nombre = $1`, [nombre_producto]);
+      const prodResult = await pool.query(`SELECT id_producto FROM producto WHERE nombre = $1`, [nombre_producto]);
       if (prodResult.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: `Producto ${nombre_producto} no encontrado` }); }
 
       const id_producto = prodResult.rows[0].id_producto;
@@ -304,5 +324,56 @@ export const generarReporte = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Error al generar reporte', detalle: error.message });
+  }
+};
+
+// NUEVO: Obtener todas las ventas con filtro opcional por nombre de producto o código
+export const obtenerVentas = async (req, res) => {
+  const { nombre, codigo_venta } = req.query;
+
+  try {
+    let query = `
+      SELECT v.id_venta, v.fecha, v.tipo_pago, t.id_ticket, t.codigo_venta
+      FROM venta v
+      JOIN ticket t ON v.id_venta = t.id_venta
+      JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
+      JOIN producto p ON tp.id_producto = p.id_producto
+    `;
+    const conditions = [];
+    const params = [];
+
+    if (nombre) {
+      params.push(`%${nombre}%`);
+      conditions.push(`p.nombre ILIKE $${params.length}`);
+    }
+
+    if (codigo_venta) {
+      params.push(`%${codigo_venta}%`);
+      conditions.push(`t.codigo_venta ILIKE $${params.length}`);
+    }
+
+    if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+
+    query += ' GROUP BY v.id_venta, t.id_ticket, t.codigo_venta ORDER BY v.fecha DESC';
+
+    const result = await pool.query(query, params);
+
+    const ventas = [];
+    for (const venta of result.rows) {
+      const productosResult = await pool.query(
+        `SELECT p.nombre AS nombre_producto, tp.cantidad, p.precio
+         FROM ticket_producto tp
+         JOIN producto p ON tp.id_producto = p.id_producto
+         WHERE tp.id_ticket = $1`,
+        [venta.id_ticket]
+      );
+      ventas.push({ ...venta, productos: productosResult.rows });
+    }
+
+    return res.json(ventas);
+
+  } catch (error) {
+    console.error('obtenerVentas error:', error);
+    return res.status(500).json({ error: 'Error inesperado al consultar las ventas', detalle: error.message });
   }
 };

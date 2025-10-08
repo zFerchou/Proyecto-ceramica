@@ -6,7 +6,8 @@ import {
   deshacerVenta, 
   actualizarVenta, 
   anularProductos, 
-  generarReporte 
+  generarReporte,
+  obtenerVentas
 } from '../controllers/ventaController.js';
 
 const router = Router();
@@ -51,15 +52,6 @@ const router = Router();
  *                       type: string
  *                     cantidad:
  *                       type: integer
- *     responses:
- *       201:
- *         description: "Venta registrada exitosamente"
- *       400:
- *         description: "Error de validación en los datos de entrada"
- *       404:
- *         description: "Producto no encontrado"
- *       500:
- *         description: "Error inesperado"
  */
 router.post('/', crearVenta);
 
@@ -78,15 +70,6 @@ router.post('/', crearVenta);
  *         name: codigo_venta
  *         schema:
  *           type: string
- *     responses:
- *       200:
- *         description: "Venta encontrada"
- *       400:
- *         description: "No se proporcionó id_venta ni codigo_venta"
- *       404:
- *         description: "Venta no encontrada"
- *       500:
- *         description: "Error inesperado"
  */
 router.get('/', obtenerVenta);
 
@@ -102,37 +85,6 @@ router.get('/', obtenerVenta);
  *         required: true
  *         schema:
  *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               tipo_pago:
- *                 type: string
- *                 enum: [Efectivo, Transacción]
- *               productos:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required:
- *                     - nombre_producto
- *                     - cantidad
- *                   properties:
- *                     nombre_producto:
- *                       type: string
- *                     cantidad:
- *                       type: integer
- *     responses:
- *       200:
- *         description: "Venta actualizada correctamente"
- *       400:
- *         description: "Error de validación"
- *       404:
- *         description: "Producto no encontrado"
- *       500:
- *         description: "Error inesperado"
  */
 router.put('/:id_venta', actualizarVenta);
 
@@ -148,15 +100,6 @@ router.put('/:id_venta', actualizarVenta);
  *         required: true
  *         schema:
  *           type: integer
- *     responses:
- *       200:
- *         description: "Venta deshecha correctamente"
- *       400:
- *         description: "ID de venta inválido"
- *       404:
- *         description: "Venta no encontrada"
- *       500:
- *         description: "Error inesperado"
  */
 router.delete('/:id_venta', deshacerVenta);
 
@@ -172,34 +115,6 @@ router.delete('/:id_venta', deshacerVenta);
  *         required: true
  *         schema:
  *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               productos:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required:
- *                     - nombre_producto
- *                     - cantidad
- *                   properties:
- *                     nombre_producto:
- *                       type: string
- *                     cantidad:
- *                       type: integer
- *     responses:
- *       200:
- *         description: "Productos anulados correctamente"
- *       400:
- *         description: "Error de validación"
- *       404:
- *         description: "Producto no encontrado"
- *       500:
- *         description: "Error inesperado"
  */
 router.patch('/:id_venta/productos', anularProductos);
 
@@ -222,14 +137,25 @@ router.patch('/:id_venta/productos', anularProductos);
  *         schema:
  *           type: string
  *           format: date
- *     responses:
- *       200:
- *         description: "Reporte generado exitosamente"
- *       400:
- *         description: "Fechas no proporcionadas"
- *       500:
- *         description: "Error inesperado"
  */
 router.get('/reporte', generarReporte);
+
+/**
+ * @swagger
+ * /ventas/all:
+ *   get:
+ *     summary: "Obtener todas las ventas con opción de filtrar por nombre de producto o código de venta"
+ *     tags: [Ventas]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: codigo_venta
+ *         schema:
+ *           type: string
+ */
+router.get('/all', obtenerVentas);
 
 export default router;
