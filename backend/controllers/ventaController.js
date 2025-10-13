@@ -66,7 +66,6 @@ export const crearVenta = async (req, res) => {
       );
     }
 
-    // Obtener productos con precio para la respuesta
     const productosConPrecio = [];
     for (const p of productos) {
       const prodCheck = await client.query(
@@ -98,7 +97,6 @@ export const crearVenta = async (req, res) => {
     client.release();
   }
 };
-
 
 // Consultar venta por id_venta o codigo_venta
 export const obtenerVenta = async (req, res) => {
@@ -142,17 +140,22 @@ export const obtenerVenta = async (req, res) => {
   }
 };
 
-// Deshacer venta y revertir stock
+// Deshacer venta y revertir stock usando codigo_venta
 export const deshacerVenta = async (req, res) => {
-  const { id_venta } = req.params;
-  if (!id_venta || isNaN(Number(id_venta))) return res.status(400).json({ error: 'El parámetro "id_venta" debe ser un número válido' });
+  const { codigo_venta } = req.params;
+  if (!codigo_venta) return res.status(400).json({ error: 'El parámetro "codigo_venta" es obligatorio' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const ticketResult = await client.query(`SELECT id_ticket FROM ticket WHERE id_venta = $1`, [id_venta]);
-    if (ticketResult.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Venta no encontrada' }); }
-    const id_ticket = ticketResult.rows[0].id_ticket;
+
+    const ticketResult = await client.query(`SELECT id_ticket, id_venta FROM ticket WHERE codigo_venta = $1`, [codigo_venta]);
+    if (ticketResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+
+    const { id_ticket, id_venta } = ticketResult.rows[0];
 
     const productosResult = await client.query(`SELECT id_producto, cantidad FROM ticket_producto WHERE id_ticket = $1`, [id_ticket]);
     for (const p of productosResult.rows) {
@@ -164,7 +167,7 @@ export const deshacerVenta = async (req, res) => {
     await client.query(`DELETE FROM venta WHERE id_venta = $1`, [id_venta]);
 
     await client.query('COMMIT');
-    return res.json({ mensaje: 'Venta deshecha correctamente', id_venta });
+    return res.json({ mensaje: 'Venta deshecha correctamente', codigo_venta, id_venta });
 
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -175,7 +178,7 @@ export const deshacerVenta = async (req, res) => {
   }
 };
 
-// Actualizar venta (PUT /ventas/:id_venta)
+// Actualizar venta
 export const actualizarVenta = async (req, res) => {
   const { id_venta } = req.params;
   const { tipo_pago, productos } = req.body;
@@ -235,7 +238,7 @@ export const actualizarVenta = async (req, res) => {
   }
 };
 
-// Anulación parcial de productos (PATCH /ventas/:id_venta/productos)
+// Anulación parcial de productos
 export const anularProductos = async (req, res) => {
   const { id_venta } = req.params;
   const { productos } = req.body;
@@ -278,7 +281,7 @@ export const anularProductos = async (req, res) => {
   }
 };
 
-// Reporte de ventas (GET /ventas/reporte)
+// Reporte de ventas
 export const generarReporte = async (req, res) => {
   const { fecha_inicio, fecha_fin } = req.query;
   if (!fecha_inicio || !fecha_fin) return res.status(400).json({ error: 'Debe enviar fecha_inicio y fecha_fin' });
@@ -327,7 +330,7 @@ export const generarReporte = async (req, res) => {
   }
 };
 
-// NUEVO: Obtener todas las ventas con filtro opcional por nombre de producto o código
+// Obtener todas las ventas con filtro opcional
 export const obtenerVentas = async (req, res) => {
   const { nombre, codigo_venta } = req.query;
 

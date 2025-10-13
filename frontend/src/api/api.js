@@ -62,17 +62,15 @@ export async function getVenta(query) {
   return fetch(`${API_BASE}/ventas?${qs}`).then(r => r.json());
 }
 
-// NUEVO: Obtener todas las ventas de manera segura
+// NUEVO: Obtener todas las ventas
 export async function getVentas(query) {
   try {
     const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
     const res = await fetch(`${API_BASE}/ventas/all${qs}`);
-    
     if (!res.ok) {
       const text = await res.text();
       return { error: text || `Error ${res.status}` };
     }
-
     try {
       const data = await res.json();
       return data;
@@ -85,8 +83,9 @@ export async function getVentas(query) {
   }
 }
 
-export async function deleteVenta(id_venta) {
-  return fetch(`${API_BASE}/ventas/${id_venta}`, { method: 'DELETE' })
+// --- DELETE usando codigo_venta
+export async function deleteVenta(codigo_venta) {
+  return fetch(`${API_BASE}/ventas/deshacer/${codigo_venta}`, { method: 'DELETE' })
     .then(async r => {
       try { return await r.json(); } 
       catch { return { error: 'Error al procesar respuesta' }; }

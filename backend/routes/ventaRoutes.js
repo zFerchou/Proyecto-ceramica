@@ -92,7 +92,7 @@ router.put('/:id_venta', actualizarVenta);
  * @swagger
  * /ventas/{id_venta}:
  *   delete:
- *     summary: "Deshacer (anular) una venta y revertir el stock"
+ *     summary: "Deshacer (anular) una venta y revertir el stock por ID de venta"
  *     tags: [Ventas]
  *     parameters:
  *       - in: path
@@ -102,6 +102,38 @@ router.put('/:id_venta', actualizarVenta);
  *           type: integer
  */
 router.delete('/:id_venta', deshacerVenta);
+
+/**
+ * @swagger
+ * /ventas/deshacer/{codigo_venta}:
+ *   delete:
+ *     summary: "Deshacer (anular) una venta y revertir stock usando código de venta"
+ *     tags: [Ventas]
+ *     parameters:
+ *       - in: path
+ *         name: codigo_venta
+ *         required: true
+ *         schema:
+ *           type: string
+ *           description: "Código único de la venta generado al crear la venta"
+ *     responses:
+ *       200:
+ *         description: Venta eliminada correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                 codigo_venta:
+ *                   type: string
+ *       404:
+ *         description: Venta no encontrada
+ *       500:
+ *         description: Error al procesar la solicitud
+ */
+router.delete('/deshacer/:codigo_venta', deshacerVenta);
 
 /**
  * @swagger

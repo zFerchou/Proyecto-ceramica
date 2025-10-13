@@ -1,15 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import NewSaleModal from '../components/NewSaleModal';
-import ReportModal from '../components/ReportModal'; // Modal de reportes
+import ReportModal from '../components/ReportModal';
 import { getVentas, deleteVenta } from '../api/api';
+
+// --- Modal para deshacer venta usando codigo_venta
+function UndoSaleModal({ isOpen, venta, onConfirm, onCancel }) {
+  if (!isOpen || !venta) return null;
+
+  return (
+    <div style={stylesModal.overlay}>
+      <div style={stylesModal.modal}>
+        <h2 style={stylesModal.title}>⚠️ Deshacer Venta</h2>
+        <p style={stylesModal.message}>
+          ¿Seguro que deseas deshacer la Venta #{venta.codigo_venta}? <br />
+          Esta acción eliminará la venta de forma permanente.
+        </p>
+        <div style={stylesModal.buttonGroup}>
+          <button
+            style={stylesModal.buttonPrimary}
+            onClick={() => onConfirm(venta.codigo_venta)}
+          >
+            Sí, deshacer venta
+          </button>
+          <button style={stylesModal.buttonCancel} onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Modal de éxito al deshacer venta
+function UndoSuccessModal({ isOpen, mensaje, onClose }) {
+  if (!isOpen) return null;
+
+  return (
+    <div style={stylesModal.overlay}>
+      <div style={stylesModal.modal}>
+        <h2 style={stylesModal.title}>✅ Éxito</h2>
+        <p style={stylesModal.message}>{mensaje}</p>
+        <div style={{ textAlign: 'center' }}>
+          <button style={stylesModal.buttonPrimary} onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SalesPage() {
   const [openNew, setOpenNew] = useState(false);
-  const [openReport, setOpenReport] = useState(false); // Modal de reporte
+  const [openReport, setOpenReport] = useState(false);
   const [query, setQuery] = useState('');
   const [ventas, setVentas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [openUndo, setOpenUndo] = useState(false);
+  const [selectedVenta, setSelectedVenta] = useState(null);
+  const [undoSuccess, setUndoSuccess] = useState({ open: false, mensaje: '' });
 
   // --- Buscar ventas
   async function buscar() {
@@ -26,18 +77,28 @@ export default function SalesPage() {
     }
   }
 
-  // --- Deshacer venta
-  async function deshacer(codigo_venta) {
-    if (!codigo_venta) return;
-    if (!window.confirm(`¿Seguro que deseas deshacer la Venta #${codigo_venta}?`)) return;
+  // --- Abrir modal deshacer
+  function handleUndoClick(venta) {
+    setSelectedVenta(venta);
+    setOpenUndo(true);
+  }
+
+  // --- Confirmar deshacer con modal de éxito
+  async function confirmUndo(codigo_venta) {
     const res = await deleteVenta(codigo_venta);
-    if (res.error) return setError(res.error);
-    setVentas((prev) => prev.filter(v => v.codigo_venta !== codigo_venta));
-    alert(`Venta #${codigo_venta} deshecha con éxito`);
+
+    if (res.error) {
+      setError(res.error);
+    } else {
+      setVentas(prev => prev.filter(v => v.codigo_venta !== codigo_venta));
+      setUndoSuccess({ open: true, mensaje: `Venta #${codigo_venta} deshecha con éxito` });
+    }
+
+    setOpenUndo(false);
+    setSelectedVenta(null);
   }
 
   useEffect(() => {
-    // Carga inicial
     buscar();
   }, []);
 
@@ -49,7 +110,10 @@ export default function SalesPage() {
         <button style={styles.buttonPrimary} onClick={() => setOpenNew(true)}>
           ➕ Nueva venta
         </button>
-        <button style={{...styles.buttonPrimary, marginLeft: '1rem'}} onClick={() => setOpenReport(true)}>
+        <button
+          style={{ ...styles.buttonPrimary, marginLeft: '1rem' }}
+          onClick={() => setOpenReport(true)}
+        >
           📄 Generar reporte
         </button>
       </div>
@@ -59,7 +123,7 @@ export default function SalesPage() {
           style={styles.input}
           placeholder="Buscar por nombre de venta o código de ticket"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={e => setQuery(e.target.value)}
         />
         <button onClick={buscar} disabled={loading} style={styles.buttonSecondary}>
           {loading ? 'Buscando...' : '🔍 Buscar'}
@@ -68,9 +132,11 @@ export default function SalesPage() {
 
       {error && <div style={styles.errorBox}>{error}</div>}
 
-      {ventas.length === 0 && !loading && <div style={{textAlign: 'center', marginTop: '1rem'}}>No hay ventas</div>}
+      {ventas.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>No hay ventas</div>
+      )}
 
-      {ventas.map((venta) => (
+      {ventas.map(venta => (
         <div key={venta.codigo_venta} style={styles.card}>
           <h3 style={styles.cardTitle}>🧮 Venta #{venta.codigo_venta}</h3>
           <div style={styles.infoLine}>
@@ -86,16 +152,17 @@ export default function SalesPage() {
           <div style={{ marginTop: '1rem' }}>
             <h4 style={{ color: '#4b3621', marginBottom: '0.5rem' }}>🛒 Productos</h4>
             <ul style={styles.productList}>
-              {venta.productos && venta.productos.map((p, idx) => (
-                <li key={idx} style={styles.productItem}>
-                  {p.nombre_producto} — <strong>{p.cantidad}</strong>
-                </li>
-              ))}
+              {venta.productos &&
+                venta.productos.map((p, idx) => (
+                  <li key={idx} style={styles.productItem}>
+                    {p.nombre_producto} — <strong>{p.cantidad}</strong>
+                  </li>
+                ))}
             </ul>
           </div>
 
           <div style={{ textAlign: 'right', marginTop: '1rem' }}>
-            <button style={styles.buttonDanger} onClick={() => deshacer(venta.codigo_venta)}>
+            <button style={styles.buttonDanger} onClick={() => handleUndoClick(venta)}>
               ⚠️ Deshacer venta
             </button>
           </div>
@@ -106,7 +173,7 @@ export default function SalesPage() {
       {openNew && (
         <NewSaleModal
           onClose={() => setOpenNew(false)}
-          onCreated={(res) => {
+          onCreated={res => {
             setVentas(prev => [res, ...prev]);
             setOpenNew(false);
           }}
@@ -114,10 +181,24 @@ export default function SalesPage() {
       )}
 
       {/* --- Modal Reporte Ventas --- */}
-      {openReport && (
-        <ReportModal
-          isOpen={openReport} // ✅ necesario para que se monte
-          onClose={() => setOpenReport(false)}
+      {openReport && <ReportModal isOpen={openReport} onClose={() => setOpenReport(false)} />}
+
+      {/* --- Modal Deshacer Venta --- */}
+      {openUndo && (
+        <UndoSaleModal
+          isOpen={openUndo}
+          venta={selectedVenta}
+          onConfirm={confirmUndo}
+          onCancel={() => setOpenUndo(false)}
+        />
+      )}
+
+      {/* --- Modal éxito deshacer venta --- */}
+      {undoSuccess.open && (
+        <UndoSuccessModal
+          isOpen={undoSuccess.open}
+          mensaje={undoSuccess.mensaje}
+          onClose={() => setUndoSuccess({ open: false, mensaje: '' })}
         />
       )}
     </div>
@@ -198,6 +279,55 @@ const styles = {
   },
   cardTitle: { fontSize: '1.2rem', color: '#4b3621', marginBottom: '1rem', textAlign: 'center' },
   infoLine: { marginBottom: '0.4rem' },
-  productList: { listStyleType: 'none', paddingLeft: 0, backgroundColor: '#f5f1e3', borderRadius: '8px', padding: '0.8rem' },
+  productList: {
+    listStyleType: 'none',
+    paddingLeft: 0,
+    backgroundColor: '#f5f1e3',
+    borderRadius: '8px',
+    padding: '0.8rem',
+  },
   productItem: { padding: '0.3rem 0', borderBottom: '1px solid #d2b48c' },
+};
+
+const stylesModal = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75,54,33,0.6)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    padding: '2rem',
+    width: '400px',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+    fontFamily: '"Poppins", sans-serif',
+  },
+  title: { textAlign: 'center', marginBottom: '1rem', fontSize: '1.5rem' },
+  message: { textAlign: 'center', marginBottom: '1.5rem' },
+  buttonGroup: { display: 'flex', justifyContent: 'space-between', gap: '0.5rem' },
+  buttonPrimary: {
+    backgroundColor: '#a67c52',
+    color: 'white',
+    border: 'none',
+    padding: '0.6rem 1.2rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  },
+  buttonCancel: {
+    backgroundColor: '#8b6b4a',
+    color: 'white',
+    border: 'none',
+    padding: '0.6rem 1.2rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  },
 };
