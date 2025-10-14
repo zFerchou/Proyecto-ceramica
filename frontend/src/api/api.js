@@ -50,7 +50,7 @@ export async function patchActualizarDetalles(id_producto, data) {
 
 // --- Ventas (Sales) API helpers
 export async function postVenta(payload) {
-  return fetch(`${API_BASE}/ventas`, {
+  return fetch(`${API_BASE}/api/ventas`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -59,14 +59,14 @@ export async function postVenta(payload) {
 
 export async function getVenta(query) {
   const qs = new URLSearchParams(query).toString();
-  return fetch(`${API_BASE}/ventas?${qs}`).then(r => r.json());
+  return fetch(`${API_BASE}/api/ventas?${qs}`).then(r => r.json());
 }
 
 // NUEVO: Obtener todas las ventas
 export async function getVentas(query) {
   try {
     const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
-    const res = await fetch(`${API_BASE}/ventas/all${qs}`);
+    const res = await fetch(`${API_BASE}/api/ventas/all${qs}`);
     if (!res.ok) {
       const text = await res.text();
       return { error: text || `Error ${res.status}` };
@@ -83,9 +83,24 @@ export async function getVentas(query) {
   }
 }
 
+// Reporte de ventas por rango de fechas
+export async function getReporteVentas({ fecha_inicio, fecha_fin }) {
+  const qs = new URLSearchParams({ fecha_inicio, fecha_fin }).toString();
+  try {
+    const res = await fetch(`${API_BASE}/api/ventas/reporte?${qs}`);
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: text || `Error ${res.status}` };
+    }
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 // --- DELETE usando codigo_venta
 export async function deleteVenta(codigo_venta) {
-  return fetch(`${API_BASE}/ventas/deshacer/${codigo_venta}`, { method: 'DELETE' })
+  return fetch(`${API_BASE}/api/ventas/deshacer/${codigo_venta}`, { method: 'DELETE' })
     .then(async r => {
       try { return await r.json(); } 
       catch { return { error: 'Error al procesar respuesta' }; }
@@ -93,7 +108,7 @@ export async function deleteVenta(codigo_venta) {
 }
 
 export async function patchAnularProductos(id_venta, payload) {
-  return fetch(`${API_BASE}/ventas/${id_venta}/productos`, {
+  return fetch(`${API_BASE}/api/ventas/${id_venta}/productos`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -113,6 +128,7 @@ const api = {
   postVenta,
   getVenta,
   getVentas,
+  getReporteVentas,
   deleteVenta,
   patchAnularProductos
 };

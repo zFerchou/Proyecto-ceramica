@@ -67,7 +67,8 @@ export default function SalesPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await getVentas({ query });
+      const params = query ? { nombre: query } : undefined;
+      const res = await getVentas(params);
       setLoading(false);
       if (res.error) return setError(res.error);
       setVentas(res);

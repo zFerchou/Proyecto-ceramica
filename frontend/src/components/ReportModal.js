@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getVentas } from '../api/api';
+import { getReporteVentas } from '../api/api';
 
 export default function ReportModal({ isOpen, onClose }) {
   const [fechaInicio, setFechaInicio] = useState('');
@@ -21,7 +21,7 @@ export default function ReportModal({ isOpen, onClose }) {
     setError(null);
 
     try {
-      const res = await getVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+  const res = await getReporteVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
       if (res.error) {
         setError(res.error);
       } else {
