@@ -1,36 +1,62 @@
+import dotenv from 'dotenv';
 import express from "express";
+import cors from "cors";
 import productoRoutes from "./routes/productoRoutes.js";
-import ventaRoutes from './routes/ventaRoutes.js';
+import ventaRoutes from "./routes/ventaRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import usuarioRoutes from "./routes/usuarioRoutes.js"; // ✅ Ruta de usuarios
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
 
+dotenv.config();
+
 const app = express();
 
-// Body parser for JSON. We attach a custom error handler below to intercept parse errors
+// --- Configuración de CORS ---
+const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir solicitudes sin origin (como Postman o cURL)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("No permitido por CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true
+}));
+
+// --- Body parser para JSON ---
 app.use(express.json());
 
-// Swagger
+// --- Documentación Swagger ---
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 
-// Rutas
+// --- Rutas principales ---
 app.use("/api/productos", productoRoutes);
-app.use('/ventas', ventaRoutes);
+app.use("/api/ventas", ventaRoutes);
+app.use("/api/usuarios", usuarioRoutes);
+app.use("/auth", authRoutes); // ✅ Autenticación
 
-// Middleware para interceptar errores de parseo JSON y devolver JSON legible
+// --- Middleware: Errores de parseo JSON ---
 app.use((err, req, res, next) => {
-	if (err && err.type === 'entity.parse.failed') {
-		// body-parser/express setea err.type para errores de parseo JSON
-		console.error('JSON parse error:', err.message);
-		return res.status(400).json({ error: 'JSON inválido en el body', detail: 'Asegúrate de que cadenas y claves estén entre comillas dobles. Por ejemplo: "nombre": "Taza"' });
-	}
-	// Delegar a siguiente handler si no es un error de parseo
-	next(err);
+  if (err && err.type === "entity.parse.failed") {
+    console.error("JSON parse error:", err.message);
+    return res.status(400).json({
+      error: "JSON inválido en el body",
+      detail: "Asegúrate de que cadenas y claves estén entre comillas dobles. Ejemplo: \"nombre\": \"Taza\""
+    });
+  }
+  next(err);
 });
 
-// Handler de errores final (para evitar devolver HTML con stack traces)
+// --- Middleware: Handler global de errores ---
 app.use((err, req, res, next) => {
-	console.error('Unhandled error:', err && err.stack ? err.stack : err);
-	res.status(500).json({ error: 'Internal Server Error' });
+  console.error("Unhandled error:", err && err.stack ? err.stack : err);
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 export default app;

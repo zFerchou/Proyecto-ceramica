@@ -35,25 +35,30 @@ export const crearVenta = async (req, res) => {
     const id_ticket = ticketInsert.rows[0].id_ticket;
 
     for (const p of productos) {
-      const { nombre_producto, cantidad } = p;
-      if (!nombre_producto || typeof nombre_producto !== 'string' || !Number.isInteger(cantidad) || cantidad <= 0) {
+      const { codigo_barras, cantidad } = p;
+      if (!codigo_barras || typeof codigo_barras !== 'string' || !Number.isInteger(cantidad) || cantidad <= 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Cada producto debe tener "nombre_producto" válido y "cantidad" como entero positivo mayor a 0' });
+        return res.status(400).json({ 
+          error: 'Cada producto debe tener "codigo_barras" válido y "cantidad" como entero positivo mayor a 0' 
+        });
       }
 
       const productoCheck = await client.query(
-        `SELECT id_producto, cantidad FROM producto WHERE nombre = $1`,
-        [nombre_producto]
+        `SELECT pr.id_producto, pr.cantidad AS stock_actual, pr.precio, pr.nombre
+         FROM codigo_barras cb
+         JOIN producto pr ON cb.id_producto = pr.id_producto
+         WHERE cb.codigo = $1`,
+        [codigo_barras]
       );
       if (productoCheck.rowCount === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: `Producto con nombre "${nombre_producto}" no encontrado` });
+        return res.status(404).json({ error: `Producto con código de barras "${codigo_barras}" no encontrado` });
       }
 
-      const { id_producto, cantidad: stockActual } = productoCheck.rows[0];
-      if (stockActual < cantidad) {
+      const { id_producto, stock_actual, nombre } = productoCheck.rows[0];
+      if (stock_actual < cantidad) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: `Stock insuficiente para el producto "${nombre_producto}"` });
+        return res.status(400).json({ error: `Stock insuficiente para el producto "${nombre}"` });
       }
 
       await client.query(
@@ -66,8 +71,31 @@ export const crearVenta = async (req, res) => {
       );
     }
 
+    const productosConPrecio = [];
+    for (const p of productos) {
+      const prodCheck = await client.query(
+        `SELECT pr.nombre, pr.precio
+         FROM codigo_barras cb
+         JOIN producto pr ON cb.id_producto = pr.id_producto
+         WHERE cb.codigo = $1`,
+        [p.codigo_barras]
+      );
+      productosConPrecio.push({
+        nombre_producto: prodCheck.rows[0].nombre,
+        cantidad: p.cantidad,
+        precio: prodCheck.rows[0].precio
+      });
+    }
+
     await client.query('COMMIT');
-    return res.status(201).json({ mensaje: 'Venta registrada exitosamente', id_venta, id_ticket, codigo_venta, fecha, productos });
+    return res.status(201).json({
+      mensaje: 'Venta registrada exitosamente',
+      id_venta,
+      id_ticket,
+      codigo_venta,
+      fecha,
+      productos: productosConPrecio
+    });
 
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -120,17 +148,22 @@ export const obtenerVenta = async (req, res) => {
   }
 };
 
-// Deshacer venta y revertir stock
+// Deshacer venta y revertir stock usando codigo_venta
 export const deshacerVenta = async (req, res) => {
-  const { id_venta } = req.params;
-  if (!id_venta || isNaN(Number(id_venta))) return res.status(400).json({ error: 'El parámetro "id_venta" debe ser un número válido' });
+  const { codigo_venta } = req.params;
+  if (!codigo_venta) return res.status(400).json({ error: 'El parámetro "codigo_venta" es obligatorio' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const ticketResult = await client.query(`SELECT id_ticket FROM ticket WHERE id_venta = $1`, [id_venta]);
-    if (ticketResult.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Venta no encontrada' }); }
-    const id_ticket = ticketResult.rows[0].id_ticket;
+
+    const ticketResult = await client.query(`SELECT id_ticket, id_venta FROM ticket WHERE codigo_venta = $1`, [codigo_venta]);
+    if (ticketResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+
+    const { id_ticket, id_venta } = ticketResult.rows[0];
 
     const productosResult = await client.query(`SELECT id_producto, cantidad FROM ticket_producto WHERE id_ticket = $1`, [id_ticket]);
     for (const p of productosResult.rows) {
@@ -142,7 +175,7 @@ export const deshacerVenta = async (req, res) => {
     await client.query(`DELETE FROM venta WHERE id_venta = $1`, [id_venta]);
 
     await client.query('COMMIT');
-    return res.json({ mensaje: 'Venta deshecha correctamente', id_venta });
+    return res.json({ mensaje: 'Venta deshecha correctamente', codigo_venta, id_venta });
 
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -153,9 +186,7 @@ export const deshacerVenta = async (req, res) => {
   }
 };
 
-// --- NUEVOS ENDPOINTS ---
-
-// Actualizar venta (PUT /ventas/:id_venta)
+// Actualizar venta
 export const actualizarVenta = async (req, res) => {
   const { id_venta } = req.params;
   const { tipo_pago, productos } = req.body;
@@ -215,7 +246,7 @@ export const actualizarVenta = async (req, res) => {
   }
 };
 
-// Anulación parcial de productos (PATCH /ventas/:id_venta/productos)
+// Anulación parcial de productos
 export const anularProductos = async (req, res) => {
   const { id_venta } = req.params;
   const { productos } = req.body;
@@ -227,7 +258,7 @@ export const anularProductos = async (req, res) => {
 
     for (const p of productos) {
       const { nombre_producto, cantidad } = p;
-      const prodResult = await client.query(`SELECT id_producto FROM producto WHERE nombre = $1`, [nombre_producto]);
+      const prodResult = await pool.query(`SELECT id_producto FROM producto WHERE nombre = $1`, [nombre_producto]);
       if (prodResult.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: `Producto ${nombre_producto} no encontrado` }); }
 
       const id_producto = prodResult.rows[0].id_producto;
@@ -258,7 +289,7 @@ export const anularProductos = async (req, res) => {
   }
 };
 
-// Reporte de ventas (GET /ventas/reporte)
+// Reporte de ventas
 export const generarReporte = async (req, res) => {
   const { fecha_inicio, fecha_fin } = req.query;
   if (!fecha_inicio || !fecha_fin) return res.status(400).json({ error: 'Debe enviar fecha_inicio y fecha_fin' });
@@ -304,5 +335,56 @@ export const generarReporte = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Error al generar reporte', detalle: error.message });
+  }
+};
+
+// Obtener todas las ventas con filtro opcional
+export const obtenerVentas = async (req, res) => {
+  const { nombre, codigo_venta } = req.query;
+
+  try {
+    let query = `
+      SELECT v.id_venta, v.fecha, v.tipo_pago, t.id_ticket, t.codigo_venta
+      FROM venta v
+      JOIN ticket t ON v.id_venta = t.id_venta
+      JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
+      JOIN producto p ON tp.id_producto = p.id_producto
+    `;
+    const conditions = [];
+    const params = [];
+
+    if (nombre) {
+      params.push(`%${nombre}%`);
+      conditions.push(`p.nombre ILIKE $${params.length}`);
+    }
+
+    if (codigo_venta) {
+      params.push(`%${codigo_venta}%`);
+      conditions.push(`t.codigo_venta ILIKE $${params.length}`);
+    }
+
+    if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+
+    query += ' GROUP BY v.id_venta, t.id_ticket, t.codigo_venta ORDER BY v.fecha DESC';
+
+    const result = await pool.query(query, params);
+
+    const ventas = [];
+    for (const venta of result.rows) {
+      const productosResult = await pool.query(
+        `SELECT p.nombre AS nombre_producto, tp.cantidad, p.precio
+         FROM ticket_producto tp
+         JOIN producto p ON tp.id_producto = p.id_producto
+         WHERE tp.id_ticket = $1`,
+        [venta.id_ticket]
+      );
+      ventas.push({ ...venta, productos: productosResult.rows });
+    }
+
+    return res.json(ventas);
+
+  } catch (error) {
+    console.error('obtenerVentas error:', error);
+    return res.status(500).json({ error: 'Error inesperado al consultar las ventas', detalle: error.message });
   }
 };

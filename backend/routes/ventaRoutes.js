@@ -6,7 +6,8 @@ import {
   deshacerVenta, 
   actualizarVenta, 
   anularProductos, 
-  generarReporte 
+  generarReporte,
+  obtenerVentas
 } from '../controllers/ventaController.js';
 
 const router = Router();
@@ -44,22 +45,48 @@ const router = Router();
  *                 items:
  *                   type: object
  *                   required:
- *                     - nombre_producto
+ *                     - codigo_barras
  *                     - cantidad
  *                   properties:
- *                     nombre_producto:
+ *                     codigo_barras:
  *                       type: string
  *                     cantidad:
  *                       type: integer
  *     responses:
  *       201:
- *         description: "Venta registrada exitosamente"
+ *         description: Venta registrada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                 id_venta:
+ *                   type: integer
+ *                 id_ticket:
+ *                   type: integer
+ *                 codigo_venta:
+ *                   type: string
+ *                 fecha:
+ *                   type: string
+ *                 productos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       nombre_producto:
+ *                         type: string
+ *                       cantidad:
+ *                         type: integer
+ *                       precio:
+ *                         type: number
  *       400:
- *         description: "Error de validación en los datos de entrada"
+ *         description: Solicitud inválida (tipo_pago o productos)
  *       404:
- *         description: "Producto no encontrado"
+ *         description: Producto no encontrado
  *       500:
- *         description: "Error inesperado"
+ *         description: Error inesperado al registrar la venta
  */
 router.post('/', crearVenta);
 
@@ -80,13 +107,39 @@ router.post('/', crearVenta);
  *           type: string
  *     responses:
  *       200:
- *         description: "Venta encontrada"
+ *         description: Venta encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id_venta:
+ *                   type: integer
+ *                 fecha:
+ *                   type: string
+ *                 tipo_pago:
+ *                   type: string
+ *                 id_ticket:
+ *                   type: integer
+ *                 codigo_venta:
+ *                   type: string
+ *                 productos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       nombre_producto:
+ *                         type: string
+ *                       cantidad:
+ *                         type: integer
+ *                       precio:
+ *                         type: number
  *       400:
- *         description: "No se proporcionó id_venta ni codigo_venta"
+ *         description: Debe enviar id_venta o codigo_venta
  *       404:
- *         description: "Venta no encontrada"
+ *         description: Venta no encontrada
  *       500:
- *         description: "Error inesperado"
+ *         description: Error inesperado al consultar la venta
  */
 router.get('/', obtenerVenta);
 
@@ -102,37 +155,15 @@ router.get('/', obtenerVenta);
  *         required: true
  *         schema:
  *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               tipo_pago:
- *                 type: string
- *                 enum: [Efectivo, Transacción]
- *               productos:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required:
- *                     - nombre_producto
- *                     - cantidad
- *                   properties:
- *                     nombre_producto:
- *                       type: string
- *                     cantidad:
- *                       type: integer
  *     responses:
  *       200:
- *         description: "Venta actualizada correctamente"
+ *         description: Venta actualizada correctamente
  *       400:
- *         description: "Error de validación"
+ *         description: Solicitud inválida (tipo_pago o productos)
  *       404:
- *         description: "Producto no encontrado"
+ *         description: Producto no encontrado
  *       500:
- *         description: "Error inesperado"
+ *         description: Error al actualizar venta
  */
 router.put('/:id_venta', actualizarVenta);
 
@@ -140,7 +171,7 @@ router.put('/:id_venta', actualizarVenta);
  * @swagger
  * /ventas/{id_venta}:
  *   delete:
- *     summary: "Deshacer (anular) una venta y revertir el stock"
+ *     summary: "Deshacer (anular) una venta y revertir el stock por ID de venta"
  *     tags: [Ventas]
  *     parameters:
  *       - in: path
@@ -150,15 +181,45 @@ router.put('/:id_venta', actualizarVenta);
  *           type: integer
  *     responses:
  *       200:
- *         description: "Venta deshecha correctamente"
- *       400:
- *         description: "ID de venta inválido"
+ *         description: Venta deshecha correctamente
  *       404:
- *         description: "Venta no encontrada"
+ *         description: Venta no encontrada
  *       500:
- *         description: "Error inesperado"
+ *         description: Error al deshacer venta
  */
 router.delete('/:id_venta', deshacerVenta);
+
+/**
+ * @swagger
+ * /ventas/deshacer/{codigo_venta}:
+ *   delete:
+ *     summary: "Deshacer (anular) una venta y revertir stock usando código de venta"
+ *     tags: [Ventas]
+ *     parameters:
+ *       - in: path
+ *         name: codigo_venta
+ *         required: true
+ *         schema:
+ *           type: string
+ *           description: "Código único de la venta generado al crear la venta"
+ *     responses:
+ *       200:
+ *         description: Venta eliminada correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                 codigo_venta:
+ *                   type: string
+ *       404:
+ *         description: Venta no encontrada
+ *       500:
+ *         description: Error al procesar la solicitud
+ */
+router.delete('/deshacer/:codigo_venta', deshacerVenta);
 
 /**
  * @swagger
@@ -172,34 +233,15 @@ router.delete('/:id_venta', deshacerVenta);
  *         required: true
  *         schema:
  *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               productos:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required:
- *                     - nombre_producto
- *                     - cantidad
- *                   properties:
- *                     nombre_producto:
- *                       type: string
- *                     cantidad:
- *                       type: integer
  *     responses:
  *       200:
- *         description: "Productos anulados correctamente"
+ *         description: Productos anulados correctamente
  *       400:
- *         description: "Error de validación"
+ *         description: Solicitud inválida
  *       404:
- *         description: "Producto no encontrado"
+ *         description: Producto no encontrado
  *       500:
- *         description: "Error inesperado"
+ *         description: Error al anular productos
  */
 router.patch('/:id_venta/productos', anularProductos);
 
@@ -224,12 +266,55 @@ router.patch('/:id_venta/productos', anularProductos);
  *           format: date
  *     responses:
  *       200:
- *         description: "Reporte generado exitosamente"
+ *         description: Reporte generado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total_vendido:
+ *                   type: number
+ *                 productos_mas_vendidos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       nombre:
+ *                         type: string
+ *                       total_cantidad:
+ *                         type: integer
+ *                 tipo_pago_mas_usado:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       tipo_pago:
+ *                         type: string
+ *                       total:
+ *                         type: integer
  *       400:
- *         description: "Fechas no proporcionadas"
+ *         description: Faltan fechas
  *       500:
- *         description: "Error inesperado"
+ *         description: Error al generar reporte
  */
 router.get('/reporte', generarReporte);
+
+/**
+ * @swagger
+ * /ventas/all:
+ *   get:
+ *     summary: "Obtener todas las ventas con opción de filtrar por nombre de producto o código de venta"
+ *     tags: [Ventas]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: codigo_venta
+ *         schema:
+ *           type: string
+ */
+router.get('/all', obtenerVentas);
 
 export default router;
