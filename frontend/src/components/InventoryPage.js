@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
 import ConfirmModal from "./ConfirmModal";
+import ProductQRModal from "./ProductQRModal"; // Modal para mostrar info al escanear QR
 import api from "../api/api";
 
 export default function InventoryPage({ onClose }) {
@@ -13,6 +14,7 @@ export default function InventoryPage({ onClose }) {
   const [message, setMessage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [lastRegisteredProduct, setLastRegisteredProduct] = useState(null);
+  const [qrModalProduct, setQrModalProduct] = useState(null); // Producto a mostrar en modal QR
 
   // Cargar productos del backend
   const load = async () => {
@@ -70,6 +72,16 @@ export default function InventoryPage({ onClose }) {
     load();
   };
 
+  // Abrir modal al hacer click en QR
+  const handleQrClick = (producto) => {
+    setQrModalProduct(producto);
+  };
+
+  // Cerrar modal QR
+  const closeQrModal = () => {
+    setQrModalProduct(null);
+  };
+
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>📦 Inventario</h1>
@@ -114,6 +126,7 @@ export default function InventoryPage({ onClose }) {
             <th style={styles.th}>Descripción</th>
             <th style={styles.th}>Cantidad</th>
             <th style={styles.th}>Precio</th>
+            <th style={styles.th}>QR</th>
           </tr>
         </thead>
         <tbody>
@@ -124,11 +137,21 @@ export default function InventoryPage({ onClose }) {
                 <td style={styles.td}>{p.descripcion}</td>
                 <td style={styles.td}>{p.cantidad}</td>
                 <td style={styles.td}>${p.precio}</td>
+                <td style={styles.td}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(
+                      "Producto: " + p.nombre
+                    )}`}
+                    alt="QR"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleQrClick(p)}
+                  />
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="4" style={styles.noData}>
+              <td colSpan="5" style={styles.noData}>
                 No se encontraron productos.
               </td>
             </tr>
@@ -159,13 +182,30 @@ export default function InventoryPage({ onClose }) {
           onClose={handleCancelConfirm} // Cierra el modal sin hacer nada
         />
       )}
+
+      {/* Modal QR */}
+      {qrModalProduct && (
+        <ProductQRModal
+          producto={qrModalProduct}
+          onClose={closeQrModal}
+        />
+      )}
     </div>
   );
 }
 
 // 🎨 Estilos
 const styles = {
-  container: { backgroundColor: "#f5f1e3", color: "#4b3621", padding: "2rem", borderRadius: "16px", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", maxWidth: "950px", margin: "2rem auto", fontFamily: '"Poppins", sans-serif' },
+  container: {
+    backgroundColor: "#f5f1e3",
+    color: "#4b3621",
+    padding: "2rem",
+    borderRadius: "16px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+    maxWidth: "950px",
+    margin: "2rem auto",
+    fontFamily: '"Poppins", sans-serif'
+  },
   title: { textAlign: "center", color: "#3e2c1c", fontSize: "2rem", marginBottom: "1.5rem" },
   actionsRow: { display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" },
   searchContainer: { width: "100%", display: "flex", justifyContent: "center" },
