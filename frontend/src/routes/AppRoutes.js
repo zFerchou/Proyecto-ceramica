@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Dashboard from '../components/Dashboard';
 import InventoryPage from '../components/InventoryPage';
 import SalesPage from '../components/SalesPage';
+import Login from '../components/Login';
 
 /**
  * Archivo de rutas principal de la aplicación
@@ -21,8 +22,11 @@ export default function AppRoutes() {
         {/* Ruta específica para ventas */}
         <Route path="/ventas" element={<SalesPage />} />
 
-        {/* Cualquier otra ruta redirige al dashboard */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+  {/* Ruta de login */}
+  <Route path="/login" element={<Login />} />
+
+  {/* Cualquier otra ruta redirige al dashboard */}
+  <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
