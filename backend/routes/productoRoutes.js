@@ -103,7 +103,7 @@ router.post("/stock-por-codigo", actualizarStockPorCodigo);
 
 /**
  * @swagger
- * /api/productos/{id_producto}/qr:
+ * /productos/{id_producto}/qr:
  *   get:
  *     summary: Generar o mostrar el código QR de un producto
  *     tags: [Productos]
@@ -120,6 +120,5 @@ router.post("/stock-por-codigo", actualizarStockPorCodigo);
  *       404:
  *         description: Producto no encontrado
  */
-router.get("/:id_producto/qr", generarQRProducto); // Ruta para QR
-
+router.get("/:id_producto/qr", generarQRProducto);
 export default router;
