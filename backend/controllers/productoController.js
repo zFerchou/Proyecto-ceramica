@@ -22,9 +22,7 @@ const validateNuevoProducto = (body) => {
     !Number.isInteger(cantidad) ||
     cantidad < 0
   )
-    errors.push(
-      "cantidad is required, must be a non-negative integer"
-    );
+    errors.push("cantidad is required, must be a non-negative integer");
   if (precio === undefined || typeof precio !== "number" || precio < 0)
     errors.push("precio is required and must be a non-negative number");
   if (
@@ -47,8 +45,13 @@ export const crearProducto = async (req, res) => {
       .json({ error: "Invalid request body", details: validationErrors });
   }
 
-  const { nombre, descripcion = null, cantidad, precio, id_categoria = null } =
-    req.body;
+  const {
+    nombre,
+    descripcion = null,
+    cantidad,
+    precio,
+    id_categoria = null,
+  } = req.body;
   const client = await pool.connect();
 
   try {
@@ -89,7 +92,7 @@ export const crearProducto = async (req, res) => {
 
     const id_producto = nuevoProducto.rows[0].id_producto;
 
-    // Generar códigos independientes
+    // Generar códigos únicos
     const codigoBarras = uuidv4();
     const codigoQR = uuidv4();
 
@@ -99,53 +102,39 @@ export const crearProducto = async (req, res) => {
       [codigoBarras, id_producto]
     );
 
-    // Insertar código QR en BD
+    // Insertar código QR
     await client.query(
       `INSERT INTO codigo_qr (codigo_qr, id_producto) VALUES ($1, $2)`,
       [codigoQR, id_producto]
     );
 
-    // Generar imagen del código QR en /public/qr/
+    // Crear carpeta QR si no existe
     const qrDir = path.resolve("public", "qr");
     if (!fs.existsSync(qrDir)) {
       fs.mkdirSync(qrDir, { recursive: true });
     }
 
+    // --- Aquí definimos la URL que abrirá el QR ---
+    const frontendURL = `http://localhost:3000/producto/${id_producto}`;
     const qrPath = path.join(qrDir, `${codigoQR}.png`);
-    await QRCode.toFile(qrPath, codigoQR, {
+    await QRCode.toFile(qrPath, frontendURL, {
       color: { dark: "#000000", light: "#FFFFFF" },
       width: 300,
     });
 
     await client.query("COMMIT");
+
     return res.status(201).json({
       message: "Producto registrado exitosamente",
       id_producto,
       codigo_barras: codigoBarras,
       codigo_qr: codigoQR,
-      qr_image_path: `/public/qr/${codigoQR}.png`,
+      qr_image_path: `/qr/${codigoQR}.png`, // ✅ Ruta servida por Express
+      qr_link: frontendURL, // ✅ URL que abre el QR
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
-    console.error(
-      "crearProducto error:",
-      error.message,
-      error.code ? `code=${error.code}` : ""
-    );
-    if (error && error.code) {
-      switch (error.code) {
-        case "23503":
-          return res.status(400).json({ error: "Referential integrity error" });
-        case "23505":
-          return res.status(409).json({ error: "Duplicate entry" });
-        case "42P01":
-          return res.status(500).json({ error: "Database table not found" });
-        default:
-          return res
-            .status(500)
-            .json({ error: "Database error", code: error.code });
-      }
-    }
+    console.error("crearProducto error:", error.message);
     return res
       .status(500)
       .json({ error: "Unexpected error while creating producto" });
@@ -158,20 +147,23 @@ export const crearProducto = async (req, res) => {
 export const listarProductos = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT nombre, descripcion, cantidad, precio 
-       FROM producto 
-       ORDER BY nombre ASC`
+      `SELECT 
+         p.id_producto,
+         p.nombre, 
+         p.descripcion, 
+         p.cantidad, 
+         p.precio,
+         p.id_categoria,
+         '/qr/' || q.codigo_qr || '.png' AS qr_image_path
+       FROM producto p
+       LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
+       ORDER BY p.nombre ASC`
     );
+
     return res.json(result.rows);
   } catch (error) {
-    console.error(
-      "listarProductos error:",
-      error.message,
-      error.code ? `code=${error.code}` : ""
-    );
-    return res
-      .status(500)
-      .json({ error: "Error al listar productos", code: error.code });
+    console.error("listarProductos error:", error.message);
+    return res.status(500).json({ error: "Error al listar productos" });
   }
 };
 
@@ -182,14 +174,8 @@ export const actualizarStock = async (req, res) => {
 
   if (!id_producto || isNaN(Number(id_producto)))
     return res.status(400).json({ error: "id_producto must be numeric" });
-  if (
-    cantidad === undefined ||
-    !Number.isInteger(cantidad) ||
-    cantidad <= 0
-  )
-    return res
-      .status(400)
-      .json({ error: "cantidad must be positive integer" });
+  if (cantidad === undefined || !Number.isInteger(cantidad) || cantidad <= 0)
+    return res.status(400).json({ error: "cantidad must be positive integer" });
 
   try {
     const producto = await pool.query(
@@ -209,12 +195,8 @@ export const actualizarStock = async (req, res) => {
       nuevaCantidad: update.rows[0].cantidad,
     });
   } catch (error) {
-    console.error(
-      "actualizarStock error:",
-      error.message,
-      error.code ? `code=${error.code}` : ""
-    );
-    return res.status(500).json({ error: "Database error", code: error.code });
+    console.error("actualizarStock error:", error.message);
+    return res.status(500).json({ error: "Database error" });
   }
 };
 
@@ -224,9 +206,7 @@ export const actualizarStockPorCodigo = async (req, res) => {
   if (!codigo || typeof codigo !== "string")
     return res.status(400).json({ error: "codigo must be string" });
   if (!cantidad || !Number.isInteger(cantidad) || cantidad <= 0)
-    return res
-      .status(400)
-      .json({ error: "cantidad must be positive integer" });
+    return res.status(400).json({ error: "cantidad must be positive integer" });
 
   try {
     const prod = await pool.query(
@@ -258,12 +238,8 @@ export const actualizarStockPorCodigo = async (req, res) => {
       nuevaCantidad: update.rows[0].cantidad,
     });
   } catch (error) {
-    console.error(
-      "actualizarStockPorCodigo error:",
-      error.message,
-      error.code ? `code=${error.code}` : ""
-    );
-    return res.status(500).json({ error: "Database error", code: error.code });
+    console.error("actualizarStockPorCodigo error:", error.message);
+    return res.status(500).json({ error: "Database error" });
   }
 };
 
@@ -277,7 +253,6 @@ export const eliminarProducto = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Borrar ambos códigos relacionados
     await client.query(`DELETE FROM codigo_barras WHERE id_producto = $1`, [
       id_producto,
     ]);
@@ -301,12 +276,8 @@ export const eliminarProducto = async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
-    console.error(
-      "eliminarProducto error:",
-      error.message,
-      error.code ? `code=${error.code}` : ""
-    );
-    return res.status(500).json({ error: "Database error", code: error.code });
+    console.error("eliminarProducto error:", error.message);
+    return res.status(500).json({ error: "Database error" });
   } finally {
     client.release();
   }
@@ -385,12 +356,8 @@ export const actualizarDetalles = async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
-    console.error(
-      "actualizarDetalles error:",
-      error.message,
-      error.code ? `code=${error.code}` : ""
-    );
-    return res.status(500).json({ error: "Database error", code: error.code });
+    console.error("actualizarDetalles error:", error.message);
+    return res.status(500).json({ error: "Database error" });
   } finally {
     client.release();
   }

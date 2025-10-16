@@ -1,6 +1,9 @@
 import dotenv from 'dotenv';
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
 import productoRoutes from "./routes/productoRoutes.js";
 import ventaRoutes from "./routes/ventaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -11,6 +14,13 @@ import { swaggerSpecs } from "./docs/swagger.js";
 dotenv.config();
 
 const app = express();
+
+// --- Configurar __dirname en ES Modules ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// --- Servir carpeta de QR ---
+app.use("/qr", express.static(path.join(__dirname, "public/qr")));
 
 // --- Configuración de CORS ---
 const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];
