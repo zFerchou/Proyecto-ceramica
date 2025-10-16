@@ -73,7 +73,7 @@ export const crearProducto = async (req, res) => {
 export const listarProductos = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT nombre, descripcion, cantidad, precio 
+      `SELECT id_producto, nombre, descripcion, cantidad, precio 
        FROM producto 
        ORDER BY nombre ASC`
     );

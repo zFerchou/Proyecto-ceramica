@@ -4,7 +4,7 @@ import cors from "cors";
 import productoRoutes from "./routes/productoRoutes.js";
 import ventaRoutes from "./routes/ventaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import usuarioRoutes from "./routes/usuarioRoutes.js"; // ✅ Nueva ruta de usuarios
+import usuarioRoutes from "./routes/usuarioRoutes.js"; // ✅ Ruta de usuarios
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
 
@@ -13,8 +13,18 @@ dotenv.config();
 const app = express();
 
 // --- Configuración de CORS ---
+const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];
+
 app.use(cors({
-  origin: "http://localhost:3001",
+  origin: function (origin, callback) {
+    // Permitir solicitudes sin origin (como Postman o cURL)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("No permitido por CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
 }));
@@ -29,7 +39,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 app.use("/api/productos", productoRoutes);
 app.use("/api/ventas", ventaRoutes);
 app.use("/api/usuarios", usuarioRoutes);
-app.use("/auth", authRoutes); // ✅ Ruta agregada para autenticación
+app.use("/auth", authRoutes); // ✅ Autenticación
 
 // --- Middleware: Errores de parseo JSON ---
 app.use((err, req, res, next) => {

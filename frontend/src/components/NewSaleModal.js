@@ -3,7 +3,7 @@ import { postVenta } from '../api/api';
 
 export default function NewSaleModal({ onClose, onCreated }) {
   const [tipoPago, setTipoPago] = useState('Efectivo');
-  const [lines, setLines] = useState([{ nombre_producto: '', cantidad: 1 }]);
+  const [lines, setLines] = useState([{ codigo_barras: '', cantidad: 1 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -14,7 +14,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
   }
 
   function addLine() {
-    setLines([...lines, { nombre_producto: '', cantidad: 1 }]);
+    setLines([...lines, { codigo_barras: '', cantidad: 1 }]);
   }
 
   function removeLine(i) {
@@ -25,15 +25,15 @@ export default function NewSaleModal({ onClose, onCreated }) {
     e.preventDefault();
     setError(null);
     const productos = lines.map(l => ({
-      nombre_producto: l.nombre_producto.trim(),
+      codigo_barras: String(l.codigo_barras || '').trim(),
       cantidad: Number(l.cantidad),
     }));
 
     if (
       productos.length === 0 ||
-      productos.some(p => !p.nombre_producto || !Number.isInteger(p.cantidad) || p.cantidad <= 0)
+      productos.some(p => !p.codigo_barras || !Number.isInteger(p.cantidad) || p.cantidad <= 0)
     ) {
-      setError('Cada línea necesita nombre de producto y cantidad entera positiva.');
+      setError('Cada línea necesita un código de barras válido y cantidad entera positiva.');
       return;
     }
 
@@ -78,9 +78,9 @@ export default function NewSaleModal({ onClose, onCreated }) {
             {lines.map((line, idx) => (
               <div key={idx} style={styles.lineRow}>
                 <input
-                  placeholder="Nombre del producto"
-                  value={line.nombre_producto}
-                  onChange={e => updateLine(idx, 'nombre_producto', e.target.value)}
+                  placeholder="Código de barras"
+                  value={line.codigo_barras}
+                  onChange={e => updateLine(idx, 'codigo_barras', e.target.value)}
                   style={styles.input}
                 />
                 <input

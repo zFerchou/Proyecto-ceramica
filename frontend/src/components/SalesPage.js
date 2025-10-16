@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import NewSaleModal from '../components/NewSaleModal';
 import ReportModal from '../components/ReportModal';
 import { getVentas, deleteVenta } from '../api/api';
@@ -63,7 +63,7 @@ export default function SalesPage() {
   const [undoSuccess, setUndoSuccess] = useState({ open: false, mensaje: '' });
 
   // --- Buscar ventas
-  async function buscar() {
+  const buscar = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
@@ -76,7 +76,7 @@ export default function SalesPage() {
       setLoading(false);
       setError(err.message);
     }
-  }
+  }, [query]);
 
   // --- Abrir modal deshacer
   function handleUndoClick(venta) {
@@ -101,7 +101,7 @@ export default function SalesPage() {
 
   useEffect(() => {
     buscar();
-  }, []);
+  }, [buscar]);
 
   return (
     <div style={styles.container}>

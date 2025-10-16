@@ -45,13 +45,48 @@ const router = Router();
  *                 items:
  *                   type: object
  *                   required:
- *                     - nombre_producto
+ *                     - codigo_barras
  *                     - cantidad
  *                   properties:
- *                     nombre_producto:
+ *                     codigo_barras:
  *                       type: string
  *                     cantidad:
  *                       type: integer
+ *     responses:
+ *       201:
+ *         description: Venta registrada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                 id_venta:
+ *                   type: integer
+ *                 id_ticket:
+ *                   type: integer
+ *                 codigo_venta:
+ *                   type: string
+ *                 fecha:
+ *                   type: string
+ *                 productos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       nombre_producto:
+ *                         type: string
+ *                       cantidad:
+ *                         type: integer
+ *                       precio:
+ *                         type: number
+ *       400:
+ *         description: Solicitud inválida (tipo_pago o productos)
+ *       404:
+ *         description: Producto no encontrado
+ *       500:
+ *         description: Error inesperado al registrar la venta
  */
 router.post('/', crearVenta);
 
@@ -70,6 +105,41 @@ router.post('/', crearVenta);
  *         name: codigo_venta
  *         schema:
  *           type: string
+ *     responses:
+ *       200:
+ *         description: Venta encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id_venta:
+ *                   type: integer
+ *                 fecha:
+ *                   type: string
+ *                 tipo_pago:
+ *                   type: string
+ *                 id_ticket:
+ *                   type: integer
+ *                 codigo_venta:
+ *                   type: string
+ *                 productos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       nombre_producto:
+ *                         type: string
+ *                       cantidad:
+ *                         type: integer
+ *                       precio:
+ *                         type: number
+ *       400:
+ *         description: Debe enviar id_venta o codigo_venta
+ *       404:
+ *         description: Venta no encontrada
+ *       500:
+ *         description: Error inesperado al consultar la venta
  */
 router.get('/', obtenerVenta);
 
@@ -85,6 +155,15 @@ router.get('/', obtenerVenta);
  *         required: true
  *         schema:
  *           type: integer
+ *     responses:
+ *       200:
+ *         description: Venta actualizada correctamente
+ *       400:
+ *         description: Solicitud inválida (tipo_pago o productos)
+ *       404:
+ *         description: Producto no encontrado
+ *       500:
+ *         description: Error al actualizar venta
  */
 router.put('/:id_venta', actualizarVenta);
 
@@ -100,6 +179,13 @@ router.put('/:id_venta', actualizarVenta);
  *         required: true
  *         schema:
  *           type: integer
+ *     responses:
+ *       200:
+ *         description: Venta deshecha correctamente
+ *       404:
+ *         description: Venta no encontrada
+ *       500:
+ *         description: Error al deshacer venta
  */
 router.delete('/:id_venta', deshacerVenta);
 
@@ -147,6 +233,15 @@ router.delete('/deshacer/:codigo_venta', deshacerVenta);
  *         required: true
  *         schema:
  *           type: integer
+ *     responses:
+ *       200:
+ *         description: Productos anulados correctamente
+ *       400:
+ *         description: Solicitud inválida
+ *       404:
+ *         description: Producto no encontrado
+ *       500:
+ *         description: Error al anular productos
  */
 router.patch('/:id_venta/productos', anularProductos);
 
@@ -169,6 +264,38 @@ router.patch('/:id_venta/productos', anularProductos);
  *         schema:
  *           type: string
  *           format: date
+ *     responses:
+ *       200:
+ *         description: Reporte generado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total_vendido:
+ *                   type: number
+ *                 productos_mas_vendidos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       nombre:
+ *                         type: string
+ *                       total_cantidad:
+ *                         type: integer
+ *                 tipo_pago_mas_usado:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       tipo_pago:
+ *                         type: string
+ *                       total:
+ *                         type: integer
+ *       400:
+ *         description: Faltan fechas
+ *       500:
+ *         description: Error al generar reporte
  */
 router.get('/reporte', generarReporte);
 

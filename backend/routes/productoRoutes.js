@@ -12,7 +12,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/productos:
+ * /productos:
  *   post:
  *     summary: Registrar un nuevo producto
  *     tags: [Productos]
@@ -52,7 +52,7 @@ router.post("/", crearProducto);
 
 /**
  * @swagger
- * /api/productos:
+ * /productos:
  *   get:
  *     summary: Obtener lista de todos los productos
  *     tags: [Productos]
@@ -81,7 +81,7 @@ router.get("/", listarProductos);
 
 /**
  * @swagger
- * /api/productos/{id_producto}:
+ * /productos/{id_producto}:
  *   delete:
  *     summary: Eliminar un producto por ID
  *     tags: [Productos]
@@ -102,7 +102,7 @@ router.delete("/:id_producto", eliminarProducto);
 
 /**
  * @swagger
- * /api/productos/{id_producto}:
+ * /productos/{id_producto}:
  *   patch:
  *     summary: Actualizar detalles de un producto
  *     tags: [Productos]
@@ -142,7 +142,7 @@ router.patch("/:id_producto", actualizarDetalles);
 
 /**
  * @swagger
- * /api/productos/{id_producto}/stock:
+ * /productos/{id_producto}/stock:
  *   put:
  *     summary: Actualizar stock de un producto existente
  *     tags: [Productos]
@@ -172,7 +172,7 @@ router.put("/:id_producto/stock", actualizarStock);
 
 /**
  * @swagger
- * /api/productos/stock-por-codigo:
+ * /productos/stock-por-codigo:
  *   post:
  *     summary: Actualizar stock usando código de barras
  *     tags: [Productos]

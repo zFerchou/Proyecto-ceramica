@@ -35,25 +35,30 @@ export const crearVenta = async (req, res) => {
     const id_ticket = ticketInsert.rows[0].id_ticket;
 
     for (const p of productos) {
-      const { nombre_producto, cantidad } = p;
-      if (!nombre_producto || typeof nombre_producto !== 'string' || !Number.isInteger(cantidad) || cantidad <= 0) {
+      const { codigo_barras, cantidad } = p;
+      if (!codigo_barras || typeof codigo_barras !== 'string' || !Number.isInteger(cantidad) || cantidad <= 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Cada producto debe tener "nombre_producto" válido y "cantidad" como entero positivo mayor a 0' });
+        return res.status(400).json({ 
+          error: 'Cada producto debe tener "codigo_barras" válido y "cantidad" como entero positivo mayor a 0' 
+        });
       }
 
       const productoCheck = await client.query(
-        `SELECT id_producto, cantidad, precio FROM producto WHERE nombre = $1`,
-        [nombre_producto]
+        `SELECT pr.id_producto, pr.cantidad AS stock_actual, pr.precio, pr.nombre
+         FROM codigo_barras cb
+         JOIN producto pr ON cb.id_producto = pr.id_producto
+         WHERE cb.codigo = $1`,
+        [codigo_barras]
       );
       if (productoCheck.rowCount === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: `Producto con nombre "${nombre_producto}" no encontrado` });
+        return res.status(404).json({ error: `Producto con código de barras "${codigo_barras}" no encontrado` });
       }
 
-      const { id_producto, cantidad: stockActual, precio } = productoCheck.rows[0];
-      if (stockActual < cantidad) {
+      const { id_producto, stock_actual, nombre } = productoCheck.rows[0];
+      if (stock_actual < cantidad) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: `Stock insuficiente para el producto "${nombre_producto}"` });
+        return res.status(400).json({ error: `Stock insuficiente para el producto "${nombre}"` });
       }
 
       await client.query(
@@ -69,11 +74,14 @@ export const crearVenta = async (req, res) => {
     const productosConPrecio = [];
     for (const p of productos) {
       const prodCheck = await client.query(
-        `SELECT precio FROM producto WHERE nombre = $1`,
-        [p.nombre_producto]
+        `SELECT pr.nombre, pr.precio
+         FROM codigo_barras cb
+         JOIN producto pr ON cb.id_producto = pr.id_producto
+         WHERE cb.codigo = $1`,
+        [p.codigo_barras]
       );
       productosConPrecio.push({
-        nombre_producto: p.nombre_producto,
+        nombre_producto: prodCheck.rows[0].nombre,
         cantidad: p.cantidad,
         precio: prodCheck.rows[0].precio
       });
