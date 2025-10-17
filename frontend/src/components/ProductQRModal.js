@@ -1,4 +1,5 @@
 import React from "react";
+import QRImage from "./QRImage";
 
 export default function ProductQRModal({ producto, onClose }) {
   if (!producto) return null;
@@ -11,10 +12,9 @@ export default function ProductQRModal({ producto, onClose }) {
         <p><strong>Cantidad:</strong> {producto.cantidad}</p>
         <p><strong>Precio:</strong> ${producto.precio}</p>
         <p><strong>ID Producto:</strong> {producto.id_producto}</p>
-        <img
-          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent("Producto: " + producto.nombre)}`}
-          alt="QR Producto"
-        />
+        <div style={{ display: "inline-block", background: "#fff", padding: 8, borderRadius: 8 }}>
+          <QRImage value={JSON.stringify({ id_producto: producto.id_producto, nombre: producto.nombre })} size={160} />
+        </div>
         <button onClick={onClose} style={modalStyles.button}>Cerrar</button>
       </div>
     </div>

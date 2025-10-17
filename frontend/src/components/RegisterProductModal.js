@@ -11,6 +11,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [file, setFile] = useState(null);
 
   // Lista de categorías (id y nombre)
   const categorias = [
@@ -35,7 +36,13 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await postProducto(form);
+      const payload = {
+        ...form,
+        cantidad: Number.parseInt(form.cantidad, 10),
+        precio: Number.parseFloat(form.precio),
+        id_categoria: Number.parseInt(form.id_categoria, 10),
+      };
+      const res = await postProducto(payload, file);
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         setError(body || { error: 'Error desconocido' });
@@ -99,6 +106,16 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
               step="0.01"
               value={form.precio}
               onChange={handleChange}
+            />
+          </label>
+
+          <label style={styles.label}>
+            Imagen del producto:
+            <input
+              style={styles.input}
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
           </label>
 

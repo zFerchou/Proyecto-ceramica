@@ -9,6 +9,7 @@ import ventaRoutes from "./routes/ventaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js"; // ✅ Ruta de usuarios
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import fs from "fs";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
 
@@ -22,6 +23,12 @@ const __dirname = path.dirname(__filename);
 
 // --- Servir carpeta de QR ---
 app.use("/qr", express.static(path.join(__dirname, "public/qr")));
+// --- Servir carpeta de uploads (imágenes de productos) ---
+const uploadsDir = path.join(__dirname, "public/uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
 
 // --- Configuración de CORS ---
 const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];

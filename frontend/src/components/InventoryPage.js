@@ -4,7 +4,10 @@ import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
 import ConfirmModal from "./ConfirmModal";
 import ProductQRModal from "./ProductQRModal"; // Modal para mostrar info al escanear QR
-import api from "../api/api";
+import QRImage from "./QRImage";
+import api, { API_BASE } from "../api/api";
+
+// QR sin hooks de terceros, usando qrcode -> data URL
 
 export default function InventoryPage({ onClose }) {
   const [showRegister, setShowRegister] = useState(false);
@@ -123,6 +126,7 @@ export default function InventoryPage({ onClose }) {
       <table style={styles.table}>
         <thead>
           <tr>
+            <th style={styles.th}>Imagen</th>
             <th style={styles.th}>Nombre</th>
             <th style={styles.th}>Descripción</th>
             <th style={styles.th}>Cantidad</th>
@@ -135,6 +139,22 @@ export default function InventoryPage({ onClose }) {
           {filteredProductos.length > 0 ? (
             filteredProductos.map((p) => (
               <tr key={p.id_producto} style={styles.tr}>
+                <td style={styles.td}>
+                  {p.imagen_url ? (
+                    <img
+                      src={`${API_BASE}${p.imagen_url}`}
+                      alt={p.nombre}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = ""; // simple fallback: hide image
+                        e.currentTarget.alt = "Imagen no disponible";
+                      }}
+                      style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#fff" }}
+                    />
+                  ) : (
+                    <span style={{ color: "#8b6b4a", fontStyle: "italic" }}>Sin imagen</span>
+                  )}
+                </td>
                 <td style={styles.td}>{p.nombre}</td>
                 <td style={styles.td}>{p.descripcion}</td>
                 <td style={styles.td}>{p.cantidad}</td>
@@ -157,14 +177,9 @@ export default function InventoryPage({ onClose }) {
                   )}
                 </td>
                 <td style={styles.td}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(
-                      "Producto: " + p.nombre
-                    )}`}
-                    alt="QR"
-                    style={{ cursor: "pointer" }}
-                    onClick={() => handleQrClick(p)}
-                  />
+                  <div style={{ display: "inline-block", background: "#fff", padding: 6, borderRadius: 6 }} onClick={() => handleQrClick(p)}>
+                    <QRImage value={JSON.stringify({ id_producto: p.id_producto, nombre: p.nombre })} size={100} />
+                  </div>
                 </td>
               </tr>
             ))

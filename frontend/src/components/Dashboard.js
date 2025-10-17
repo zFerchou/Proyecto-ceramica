@@ -4,7 +4,7 @@ import SalesPage from "../components/SalesPage";
 import ProductosView from "../components/ProductosView";
 import Login from "../components/Login";
 import authService from "../services/authService";
-import { getProductosResumenDashboard } from "../api/api";
+import { getProductosResumenDashboard, API_BASE } from "../api/api";
 
 const cliente = {
   nombre: "Santo Barro Cerámica",
@@ -45,7 +45,15 @@ const Carousel = ({ productos, titulo, subtitulo }) => {
         <button className="carousel-btn prev" onClick={prevSlide}>❮</button>
         <div className="carousel-content">
           <div className="product-carousel-card">
-            <img src={productos[currentIndex].qr_image_path || "https://via.placeholder.com/150"} alt={productos[currentIndex].nombre} className="carousel-image" />
+            <img
+              src={productos[currentIndex].imagen_url ? `${API_BASE}${productos[currentIndex].imagen_url}` : "https://via.placeholder.com/150"}
+              alt={productos[currentIndex].nombre}
+              className="carousel-image"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "https://via.placeholder.com/150";
+              }}
+            />
             <h4 className="carousel-product-name">{productos[currentIndex].nombre}</h4>
             <p className="carousel-product-desc">{productos[currentIndex].descripcion}</p>
             <p className="carousel-product-price">${productos[currentIndex].precio}</p>

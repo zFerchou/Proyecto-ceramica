@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getProductos } from "../api/api";
+import { getProductos, API_BASE } from "../api/api";
 import fondo from "../images/fondo.png";
+import QRImage from "./QRImage";
 
 // Paleta de colores coherente con la estética artesanal
 const COLORS = {
@@ -138,8 +139,13 @@ export default function ProductosView() {
                 <div style={styles.productImagePlaceholder}>
                   {p.imagen_url ? (
                     <img
-                      src={`${process.env.REACT_APP_API_BASE}${p.imagen_url.replace(/^\/public/, "")}`}
+                      src={`${API_BASE}${p.imagen_url}`}
                       alt={p.nombre}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = ""; // hide if missing
+                        e.currentTarget.alt = "Imagen no disponible";
+                      }}
                       style={{
                         width: "100%",
                         height: "100%",
@@ -178,8 +184,13 @@ export default function ProductosView() {
             <div style={styles.detailLeft}>
               {selected.imagen_url ? (
                 <img
-                  src={`${process.env.REACT_APP_API_BASE}${selected.imagen_url.replace(/^\/public/, "")}`}
+                  src={`${API_BASE}${selected.imagen_url}`}
                   alt={selected.nombre}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "";
+                    e.currentTarget.alt = "Imagen no disponible";
+                  }}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -203,24 +214,15 @@ export default function ProductosView() {
 
               {/* Código de barras removido en ProductosView por solicitud. */}
 
-              {/* --- Mostrar QR --- */}
-              {selected.qr_image_path && (
-                <div style={{ marginTop: "1rem", textAlign: "center" }}>
-                  <strong>Código QR:</strong>
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <img
-                      src={`${process.env.REACT_APP_API_BASE}${selected.qr_image_path.replace(/^\/public/, "")}`}
-                      alt={`QR de ${selected.nombre}`}
-                      style={{
-                        maxWidth: 200,
-                        maxHeight: 200,
-                        borderRadius: 8,
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                      }}
-                    />
+              {/* --- Mostrar QR dinámico --- */}
+              <div style={{ marginTop: "1rem", textAlign: "center" }}>
+                <strong>Código QR:</strong>
+                <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "center" }}>
+                  <div style={{ background: "#fff", padding: 8, borderRadius: 8 }}>
+                    <QRImage value={JSON.stringify({ id_producto: selected.id_producto, nombre: selected.nombre })} size={180} />
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* --- Info extra --- */}
               <div style={styles.detailMeta}>
