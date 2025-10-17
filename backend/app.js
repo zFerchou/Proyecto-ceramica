@@ -1,16 +1,27 @@
 import dotenv from 'dotenv';
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
 import productoRoutes from "./routes/productoRoutes.js";
 import ventaRoutes from "./routes/ventaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js"; // ✅ Ruta de usuarios
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
 
 dotenv.config();
 
 const app = express();
+
+// --- Configurar __dirname en ES Modules ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// --- Servir carpeta de QR ---
+app.use("/qr", express.static(path.join(__dirname, "public/qr")));
 
 // --- Configuración de CORS ---
 const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];
@@ -39,6 +50,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 app.use("/api/productos", productoRoutes);
 app.use("/api/ventas", ventaRoutes);
 app.use("/api/usuarios", usuarioRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/auth", authRoutes); // ✅ Autenticación
 
 // --- Middleware: Errores de parseo JSON ---

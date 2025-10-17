@@ -98,6 +98,20 @@ export async function getReporteVentas({ fecha_inicio, fecha_fin }) {
   }
 }
 
+// Dashboard: resumen de productos (top, recientes, agotando)
+export async function getProductosResumenDashboard() {
+  try {
+    const res = await fetch(`${API_BASE}/api/dashboard/productos-resumen`);
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: text || `Error ${res.status}` };
+    }
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 // --- DELETE usando codigo_venta
 export async function deleteVenta(codigo_venta) {
   return fetch(`${API_BASE}/api/ventas/deshacer/${codigo_venta}`, { method: 'DELETE' })
@@ -130,7 +144,8 @@ const api = {
   getVentas,
   getReporteVentas,
   deleteVenta,
-  patchAnularProductos
+  patchAnularProductos,
+  getProductosResumenDashboard
 };
 
 export default api;

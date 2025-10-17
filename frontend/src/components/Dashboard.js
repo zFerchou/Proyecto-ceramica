@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import InventoryPage from "../components/InventoryPage";
 import SalesPage from "../components/SalesPage";
+import ProductosView from "../components/ProductosView";
+import Login from "../components/Login";
+import authService from "../services/authService";
+import { getProductosResumenDashboard } from "../api/api";
 
-// Datos del cliente
 const cliente = {
   nombre: "Santo Barro Cerámica",
   seguidores: 119,
@@ -16,96 +19,8 @@ const cliente = {
   mensajePromocional: "Hecho a mano, con pasión y dedicación. Decora tu mesa con la autenticidad de la cerámica"
 };
 
-// Datos de productos expandidos
-const productos = [
-  {
-    id: 1,
-    nombre: "Maceta Artesanal",
-    precio: 350,
-    descripcion: "Maceta hecha a mano, perfecta para plantas pequeñas.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "top",
-    ventas: 45,
-    stock: 8
-  },
-  {
-    id: 2,
-    nombre: "Vaso Cerámico",
-    precio: 120,
-    descripcion: "Vaso para café o té, diseño único.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "top",
-    ventas: 38,
-    stock: 15
-  },
-  {
-    id: 3,
-    nombre: "Plato Decorativo",
-    precio: 250,
-    descripcion: "Plato de cerámica pintado a mano.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "top",
-    ventas: 29,
-    stock: 2
-  },
-  {
-    id: 4,
-    nombre: "Bowl Rústico",
-    precio: 180,
-    descripcion: "Bowl perfecto para ensaladas y sopas.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "reciente",
-    fechaAgregado: "2025-10-10",
-    stock: 12
-  },
-  {
-    id: 5,
-    nombre: "Jarrito Tradicional",
-    precio: 95,
-    descripcion: "Jarrito de barro tradicional mexicano.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "reciente",
-    fechaAgregado: "2025-10-08",
-    stock: 20
-  },
-  {
-    id: 6,
-    nombre: "Cazuela de Barro",
-    precio: 280,
-    descripcion: "Cazuela tradicional para cocinar.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "reciente",
-    fechaAgregado: "2025-10-05",
-    stock: 3
-  },
-  {
-    id: 7,
-    nombre: "Taza Artística",
-    precio: 140,
-    descripcion: "Taza con diseños únicos pintados a mano.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "agotando",
-    stock: 2
-  },
-  {
-    id: 8,
-    nombre: "Florero Grande",
-    precio: 420,
-    descripcion: "Florero de cerámica para decoración.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "agotando",
-    stock: 1
-  },
-  {
-    id: 9,
-    nombre: "Set de Platitos",
-    precio: 380,
-    descripcion: "Set de 4 platitos decorativos.",
-    imagen: "https://via.placeholder.com/150",
-    categoria: "agotando",
-    stock: 3
-  }
-];
+// Datos de productos vienen de la API del backend
+// Estructura esperada por cada item: { id_producto, nombre, descripcion, precio, stock, ventas, qr_image_path }
 
 // Componente Carrusel
 const Carousel = ({ productos, titulo, subtitulo }) => {
@@ -133,7 +48,7 @@ const Carousel = ({ productos, titulo, subtitulo }) => {
         <button className="carousel-btn prev" onClick={prevSlide}>❮</button>
         <div className="carousel-content">
           <div className="product-carousel-card">
-            <img src={productos[currentIndex].imagen} alt={productos[currentIndex].nombre} className="carousel-image" />
+            <img src={productos[currentIndex].qr_image_path || "https://via.placeholder.com/150"} alt={productos[currentIndex].nombre} className="carousel-image" />
             <h4 className="carousel-product-name">{productos[currentIndex].nombre}</h4>
             <p className="carousel-product-desc">{productos[currentIndex].descripcion}</p>
             <p className="carousel-product-price">${productos[currentIndex].precio}</p>
@@ -143,7 +58,7 @@ const Carousel = ({ productos, titulo, subtitulo }) => {
             {productos[currentIndex].categoria === 'top' && (
               <span className="best-seller">★ Más Vendido</span>
             )}
-            {productos[currentIndex].stock && (
+            {typeof productos[currentIndex].stock === 'number' && (
               <p className="stock-info">Stock: {productos[currentIndex].stock}</p>
             )}
           </div>
@@ -165,10 +80,32 @@ const Carousel = ({ productos, titulo, subtitulo }) => {
 
 // Componente Home
 const Home = () => {
-  // Filtrar productos por categorías
-  const topProductos = productos.filter(p => p.categoria === 'top').slice(0, 3);
-  const recentProductos = productos.filter(p => p.categoria === 'reciente').slice(0, 3);
-  const agotandoProductos = productos.filter(p => p.categoria === 'agotando').slice(0, 3);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [topProductos, setTopProductos] = useState([]);
+  const [recentProductos, setRecentProductos] = useState([]);
+  const [agotandoProductos, setAgotandoProductos] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const data = await getProductosResumenDashboard();
+      if (!isMounted) return;
+      if (data && data.error) {
+        setError(data.error);
+      } else {
+        // Etiquetar categorías para el UI de badges
+        const top = (data.top || []).map(p => ({ ...p, categoria: 'top' }));
+        const rec = (data.recientes || []).map(p => ({ ...p, categoria: 'reciente' }));
+        const ago = (data.agotando || []).map(p => ({ ...p, categoria: 'agotando' }));
+        setTopProductos(top);
+        setRecentProductos(rec);
+        setAgotandoProductos(ago);
+      }
+      setLoading(false);
+    })();
+    return () => { isMounted = false; };
+  }, []);
 
   return (
     <div className="home-container">
@@ -182,22 +119,27 @@ const Home = () => {
       {/* Sección de Productos */}
       <section className="products-section">
         <h2 className="section-title">Nuestros Productos Destacados</h2>
+        {loading && <p style={{ textAlign: 'center' }}>Cargando productos...</p>}
+        {error && <p style={{ textAlign: 'center', color: '#c0392b' }}>Error: {error}</p>}
         <div className="products-cards-grid">
+          {topProductos.length > 0 && (
           <Carousel 
-            productos={topProductos} 
+            productos={topProductos}
             titulo="🏆 Más Vendidos" 
             subtitulo="Los favoritos de nuestros clientes"
-          />
+          />)}
+          {recentProductos.length > 0 && (
           <Carousel 
             productos={recentProductos} 
             titulo="🆕 Recién Agregados" 
             subtitulo="Las últimas creaciones"
-          />
+          />)}
+          {agotandoProductos.length > 0 && (
           <Carousel 
             productos={agotandoProductos} 
             titulo="⚡ Últimas Piezas" 
             subtitulo="¡No te quedes sin el tuyo!"
-          />
+          />)}
         </div>
       </section>
 
@@ -254,14 +196,16 @@ const Home = () => {
   );
 };
 
-// Componente principal Dashboard
 export default function Dashboard() {
   const [activePage, setActivePage] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
+
+  const isAdmin = user?.rol === "Admin";
 
   return (
     <div className="dashboard-container">
-      {/* Navbar superior */}
       <header className="navbar">
         <div className="navbar-left">
           <button
@@ -274,7 +218,6 @@ export default function Dashboard() {
           <h2 className="navbar-title">Menú</h2>
         </div>
 
-        {/* Menú desplegable */}
         {menuOpen && (
           <nav className="dropdown-menu">
             <ul>
@@ -283,26 +226,79 @@ export default function Dashboard() {
                   Inicio
                 </button>
               </li>
+
+              {/* Solo mostrar opciones de Admin si es admin */}
+              {isAdmin && (
+                <>
+                  <li>
+                    <button onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
+                      Inventario
+                    </button>
+                  </li>
+                  <li>
+                    <button onClick={() => { setActivePage("sales"); setMenuOpen(false); }}>
+                      Ventas
+                    </button>
+                  </li>
+                </>
+              )}
+
               <li>
-                <button onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
-                  Inventario
+                <button onClick={() => { setActivePage("productos"); setMenuOpen(false); }}>
+                  Productos
                 </button>
               </li>
-              <li>
-                <button onClick={() => { setActivePage("sales"); setMenuOpen(false); }}>
-                  Ventas
-                </button>
-              </li>
+
+              {user ? (
+                <li>
+                  <button
+                    onClick={() => {
+                      authService.logout();
+                      setUser(null);
+                      setActivePage("home");
+                      setMenuOpen(false);
+                    }}
+                    style={{ backgroundColor: "#c0392b", color: "white", borderRadius: "8px", padding: "8px 12px", width: "100%" }}
+                  >
+                    Cerrar sesión
+                  </button>
+                </li>
+              ) : (
+                <li>
+                  <button
+                    onClick={() => {
+                      setShowLogin(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Iniciar Sesión
+                  </button>
+                </li>
+              )}
             </ul>
           </nav>
         )}
       </header>
 
-      {/* Contenido principal */}
       <main className="main-content">
         {activePage === "home" && <Home />}
-        {activePage === "inventory" && <InventoryPage onClose={() => setActivePage("home")} />}
-        {activePage === "sales" && <SalesPage />}
+        {activePage === "inventory" && isAdmin && <InventoryPage onClose={() => setActivePage("home")} />}
+        {activePage === "sales" && isAdmin && <SalesPage />}
+        {activePage === "productos" && <ProductosView />}
+
+        {showLogin && !user && (
+          <div className="login-modal">
+            <div className="modal-overlay" onClick={() => setShowLogin(false)}></div>
+            <div className="modal-content">
+              <Login
+                onLoginSuccess={(loggedUser) => {
+                  setUser(loggedUser); // loggedUser debe incluir {rol: "Admin" o "User"}
+                  setShowLogin(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Estilos */}
@@ -708,7 +704,6 @@ export default function Dashboard() {
           .carousel-btn { width: 35px; height: 35px; font-size: 1rem; }
           .hero-section { padding: 40px 20px; }
           .section-title { font-size: 1.8rem; }
-        }
       `}</style>
     </div>
   );

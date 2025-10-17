@@ -4,6 +4,7 @@ import Dashboard from '../components/Dashboard';
 import InventoryPage from '../components/InventoryPage';
 import SalesPage from '../components/SalesPage';
 import ProductosView from '../components/ProductosView';
+import Login from '../components/Login';
 
 /**
  * Archivo de rutas principal de la aplicación
@@ -27,6 +28,11 @@ export default function AppRoutes() {
 
         {/* Cualquier otra ruta redirige al dashboard */}
         <Route path="*" element={<Navigate to="/" replace />} />
+  {/* Ruta de login */}
+  <Route path="/login" element={<Login />} />
+
+  {/* Cualquier otra ruta redirige al dashboard */}
+  <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
