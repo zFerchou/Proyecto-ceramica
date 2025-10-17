@@ -201,6 +201,8 @@ export default function ProductosView() {
                 {selected.descripcion || "Pieza de cerámica artesanal."}
               </p>
 
+              {/* Código de barras removido en ProductosView por solicitud. */}
+
               {/* --- Mostrar QR --- */}
               {selected.qr_image_path && (
                 <div style={{ marginTop: "1rem", textAlign: "center" }}>

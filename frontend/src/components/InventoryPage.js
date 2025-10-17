@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Barcode from "react-barcode";
 import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
 import ConfirmModal from "./ConfirmModal";
@@ -126,6 +127,7 @@ export default function InventoryPage({ onClose }) {
             <th style={styles.th}>Descripción</th>
             <th style={styles.th}>Cantidad</th>
             <th style={styles.th}>Precio</th>
+            <th style={styles.th}>Código de barras</th>
             <th style={styles.th}>QR</th>
           </tr>
         </thead>
@@ -137,6 +139,23 @@ export default function InventoryPage({ onClose }) {
                 <td style={styles.td}>{p.descripcion}</td>
                 <td style={styles.td}>{p.cantidad}</td>
                 <td style={styles.td}>${p.precio}</td>
+                <td style={styles.td}>
+                  {p.codigo_barras ? (
+                    <div style={{ background: "#fff", padding: 6, borderRadius: 6, display: "inline-block" }}>
+                      <Barcode
+                        value={String(p.codigo_barras)}
+                        format="EAN13"
+                        width={1.5}
+                        height={50}
+                        displayValue
+                        background="#ffffff"
+                        lineColor="#000000"
+                      />
+                    </div>
+                  ) : (
+                    <span style={{ color: "#8b6b4a", fontStyle: "italic" }}>Sin código</span>
+                  )}
+                </td>
                 <td style={styles.td}>
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 // -------------------- Helper de validación --------------------
 const validateNuevoProducto = (body) => {
@@ -92,9 +93,9 @@ export const crearProducto = async (req, res) => {
 
     const id_producto = nuevoProducto.rows[0].id_producto;
 
-    // Generar códigos únicos
-    const codigoBarras = uuidv4();
-    const codigoQR = uuidv4();
+  // Generar códigos únicos
+  const codigoBarras = await generarEAN13Unico(client);
+  const codigoQR = uuidv4();
 
     // Insertar código de barras
     await client.query(
@@ -143,6 +144,57 @@ export const crearProducto = async (req, res) => {
   }
 };
 
+// -------------------- Helpers de código de barras EAN-13 --------------------
+// Calcula el dígito verificador para 12 dígitos base
+function calcularCheckDigitEAN13(base12) {
+  const digits = base12.split("").map((d) => parseInt(d, 10));
+  if (digits.length !== 12 || digits.some((d) => Number.isNaN(d))) {
+    throw new Error("Base EAN-13 inválida: requiere 12 dígitos");
+  }
+  let sumOdd = 0; // posiciones 1,3,5,7,9,11 (index 0,2,4,6,8,10)
+  let sumEven = 0; // posiciones 2,4,6,8,10,12 (index 1,3,5,7,9,11)
+  for (let i = 0; i < 12; i++) {
+    if ((i + 1) % 2 === 0) sumEven += digits[i];
+    else sumOdd += digits[i];
+  }
+  const total = sumOdd + sumEven * 3;
+  const mod = total % 10;
+  return (10 - mod) % 10;
+}
+
+function generarDigitosAleatorios(cuantos) {
+  let s = "";
+  for (let i = 0; i < cuantos; i++) {
+    s += String(crypto.randomInt(0, 10));
+  }
+  return s;
+}
+
+async function generarEAN13Unico(client) {
+  // Prefijo configurable, solo dígitos. Por defecto usamos "290" (interno de tienda)
+  let prefix = process.env.EAN_PREFIX || "290";
+  prefix = String(prefix).replace(/\D/g, "");
+  if (!prefix || prefix.length >= 12) prefix = "290";
+
+  const maxIntentos = 30;
+  for (let intento = 0; intento < maxIntentos; intento++) {
+    const faltan = 12 - prefix.length;
+    const base12 = prefix + generarDigitosAleatorios(faltan);
+    const check = calcularCheckDigitEAN13(base12);
+    const codigo = base12 + String(check);
+
+    // Verificar unicidad
+    const exists = await client.query(
+      `SELECT 1 FROM codigo_barras WHERE codigo = $1 LIMIT 1`,
+      [codigo]
+    );
+    if (exists.rowCount === 0) {
+      return codigo;
+    }
+  }
+  throw new Error("No fue posible generar un código EAN-13 único después de varios intentos");
+}
+
 // -------------------- Listar productos --------------------
 export const listarProductos = async (req, res) => {
   try {
@@ -154,9 +206,13 @@ export const listarProductos = async (req, res) => {
          p.cantidad, 
          p.precio,
          p.id_categoria,
-         '/qr/' || q.codigo_qr || '.png' AS qr_image_path
-       FROM producto p
-       LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
+         '/qr/' || q.codigo_qr || '.png' AS qr_image_path,
+             p.id_categoria,
+             cb.codigo AS codigo_barras,
+             '/qr/' || q.codigo_qr || '.png' AS qr_image_path
+           FROM producto p
+           LEFT JOIN codigo_barras cb ON p.id_producto = cb.id_producto
+           LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
        ORDER BY p.nombre ASC`
     );
 
