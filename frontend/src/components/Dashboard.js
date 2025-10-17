@@ -19,9 +19,6 @@ const cliente = {
   mensajePromocional: "Hecho a mano, con pasión y dedicación. Decora tu mesa con la autenticidad de la cerámica"
 };
 
-// Datos de productos vienen de la API del backend
-// Estructura esperada por cada item: { id_producto, nombre, descripcion, precio, stock, ventas, qr_image_path }
-
 // Componente Carrusel
 const Carousel = ({ productos, titulo, subtitulo }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -94,7 +91,6 @@ const Home = () => {
       if (data && data.error) {
         setError(data.error);
       } else {
-        // Etiquetar categorías para el UI de badges
         const top = (data.top || []).map(p => ({ ...p, categoria: 'top' }));
         const rec = (data.recientes || []).map(p => ({ ...p, categoria: 'reciente' }));
         const ago = (data.agotando || []).map(p => ({ ...p, categoria: 'agotando' }));
@@ -109,14 +105,12 @@ const Home = () => {
 
   return (
     <div className="home-container">
-      {/* Encabezado Principal */}
       <header className="hero-section">
         <h1 className="client-name">{cliente.nombre}</h1>
         <p className="description">{cliente.descripcion}</p>
         <p className="promo">{cliente.mensajePromocional}</p>
       </header>
 
-      {/* Sección de Productos */}
       <section className="products-section">
         <h2 className="section-title">Nuestros Productos Destacados</h2>
         {loading && <p style={{ textAlign: 'center' }}>Cargando productos...</p>}
@@ -143,7 +137,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Información de Contacto */}
       <section className="contact-section">
         <h2 className="section-title">Información de Contacto</h2>
         <div className="contact-grid">
@@ -166,7 +159,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Pie de Página */}
       <footer className="footer">
         <div className="footer-content">
           <div className="footer-section">
@@ -202,8 +194,6 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
 
-  const isAdmin = user?.rol === "Admin";
-
   return (
     <div className="dashboard-container">
       <header className="navbar">
@@ -227,21 +217,17 @@ export default function Dashboard() {
                 </button>
               </li>
 
-              {/* Solo mostrar opciones de Admin si es admin */}
-              {isAdmin && (
-                <>
-                  <li>
-                    <button onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
-                      Inventario
-                    </button>
-                  </li>
-                  <li>
-                    <button onClick={() => { setActivePage("sales"); setMenuOpen(false); }}>
-                      Ventas
-                    </button>
-                  </li>
-                </>
-              )}
+              {/* Mostrar todas las opciones siempre */}
+              <li>
+                <button onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
+                  Inventario
+                </button>
+              </li>
+              <li>
+                <button onClick={() => { setActivePage("sales"); setMenuOpen(false); }}>
+                  Ventas
+                </button>
+              </li>
 
               <li>
                 <button onClick={() => { setActivePage("productos"); setMenuOpen(false); }}>
@@ -282,8 +268,8 @@ export default function Dashboard() {
 
       <main className="main-content">
         {activePage === "home" && <Home />}
-        {activePage === "inventory" && isAdmin && <InventoryPage onClose={() => setActivePage("home")} />}
-        {activePage === "sales" && isAdmin && <SalesPage />}
+        {activePage === "inventory" && <InventoryPage onClose={() => setActivePage("home")} />}
+        {activePage === "sales" && <SalesPage />}
         {activePage === "productos" && <ProductosView />}
 
         {showLogin && !user && (
@@ -292,7 +278,7 @@ export default function Dashboard() {
             <div className="modal-content">
               <Login
                 onLoginSuccess={(loggedUser) => {
-                  setUser(loggedUser); // loggedUser debe incluir {rol: "Admin" o "User"}
+                  setUser(loggedUser);
                   setShowLogin(false);
                 }}
               />
