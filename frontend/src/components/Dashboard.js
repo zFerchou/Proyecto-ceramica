@@ -288,7 +288,7 @@ export default function Dashboard() {
       </main>
 
       {/* Estilos */}
-      <style jsx>{`
+      <style>{`
         .dashboard-container {
           display: flex;
           flex-direction: column;

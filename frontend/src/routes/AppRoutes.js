@@ -5,6 +5,9 @@ import InventoryPage from '../components/InventoryPage';
 import SalesPage from '../components/SalesPage';
 import ProductosView from '../components/ProductosView';
 import Login from '../components/Login';
+import ForgotUsername from '../components/ForgotUsername';
+import ForgotPassword from '../components/ForgotPassword';
+import ResetPassword from '../components/ResetPassword';
 
 /**
  * Archivo de rutas principal de la aplicación
@@ -17,22 +20,21 @@ export default function AppRoutes() {
         {/* Ruta principal del dashboard */}
         <Route path="/" element={<Dashboard />} />
 
-        {/* Ruta específica para el inventario */}
+        {/* Rutas específicas */}
         <Route path="/inventario" element={<InventoryPage />} />
-
-        {/* Ruta específica para ventas */}
         <Route path="/ventas" element={<SalesPage />} />
 
-  {/* Catálogo público para clientes */}
-  <Route path="/catalogo" element={<ProductosView />} />
+        {/* Catálogo público para clientes */}
+        <Route path="/catalogo" element={<ProductosView />} />
+
+        {/* Rutas de autenticación */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-username" element={<ForgotUsername />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* Cualquier otra ruta redirige al dashboard */}
         <Route path="*" element={<Navigate to="/" replace />} />
-  {/* Ruta de login */}
-  <Route path="/login" element={<Login />} />
-
-  {/* Cualquier otra ruta redirige al dashboard */}
-  <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

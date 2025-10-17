@@ -1,49 +1,100 @@
+// src/components/AuthModal.js
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import loginapi from '../api/loginapi';
-import authService from '../services/authService';
+import loginapi from '../api/loginApi';
 import Verificar2FA from './Verificar2FA';
 
-export default function Login({ onClose, onLoginSuccess }) {
-  const [credentials, setCredentials] = useState({ email: '', password: '' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [pending2FA, setPending2FA] = useState(null);
+export default function AuthModal({ onLoginSuccess }) {
   const navigate = useNavigate();
+  const [mode, setMode] = useState('login'); // 'login' | 'forgotUsername' | 'forgotPassword'
+  const [isVisible, setIsVisible] = useState(true);
 
-  const handleInputChange = (e) => {
+  // --- Login ---
+  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [pending2FA, setPending2FA] = useState(null);
+
+  // --- Forgot Username ---
+  const [emailFU, setEmailFU] = useState('');
+  const [messageFU, setMessageFU] = useState('');
+  const [errorFU, setErrorFU] = useState('');
+  const [loadingFU, setLoadingFU] = useState(false);
+
+  // --- Forgot Password ---
+  const [emailFP, setEmailFP] = useState('');
+  const [messageFP, setMessageFP] = useState('');
+  const [errorFP, setErrorFP] = useState('');
+  const [loadingFP, setLoadingFP] = useState(false);
+
+  // --- Handlers ---
+  const handleLoginChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
-    setError('');
+    setLoginError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setLoginLoading(true);
+    setLoginError('');
     if (!credentials.email || !credentials.password) {
-      setError('Por favor completa todos los campos');
-      setLoading(false);
+      setLoginError('Por favor completa todos los campos');
+      setLoginLoading(false);
       return;
     }
-
     try {
       const data = await loginapi.login(credentials);
       if (data.require2FA) {
         setPending2FA({ userId: data.userId || data.id, email: data.email });
       } else if (data.token && data.user) {
-        authService.setAuthData(data.token, data.user);
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('authUser', JSON.stringify(data.user));
         if (onLoginSuccess) onLoginSuccess();
+        setIsVisible(false);
         navigate('/dashboard');
       } else {
-        setError('Respuesta inesperada del servidor');
+        setLoginError('Respuesta inesperada del servidor');
       }
     } catch (err) {
-      setError(err.message || 'Error en el login');
+      setLoginError(err.message || 'Error en el login');
     } finally {
-      setLoading(false);
+      setLoginLoading(false);
     }
   };
 
+  const handleForgotUsername = async (e) => {
+    e.preventDefault();
+    setLoadingFU(true);
+    setMessageFU('');
+    setErrorFU('');
+    try {
+      const res = await loginapi.forgotUsername(emailFU);
+      setMessageFU(res.message || 'Revisa tu correo.');
+    } catch (err) {
+      setErrorFU(err.message || 'Error al recuperar usuario');
+    } finally {
+      setLoadingFU(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLoadingFP(true);
+    setMessageFP('');
+    setErrorFP('');
+    try {
+      const res = await loginapi.forgotPassword(emailFP);
+      setMessageFP(res.message || 'Si el correo existe, se envió el enlace de recuperación');
+    } catch (err) {
+      setErrorFP(err.message || 'Error al enviar correo');
+    } finally {
+      setLoadingFP(false);
+    }
+  };
+
+  if (!isVisible) return null;
+
+  // --- 2FA ---
   if (pending2FA) {
     return (
       <Verificar2FA
@@ -51,14 +102,15 @@ export default function Login({ onClose, onLoginSuccess }) {
         email={pending2FA.email}
         onSuccess={(data) => {
           if (data.token && data.user) {
-            authService.setAuthData(data.token, data.user);
+            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('authUser', JSON.stringify(data.user));
             if (onLoginSuccess) onLoginSuccess();
+            setIsVisible(false);
             navigate('/dashboard');
-          } else {
-            setError('No se recibió token después de verificar 2FA');
           }
         }}
-        onError={(msg) => setError(msg)}
+        onError={(msg) => setLoginError(msg)}
+        onCancel={() => setPending2FA(null)}
       />
     );
   }
@@ -87,10 +139,6 @@ export default function Login({ onClose, onLoginSuccess }) {
       backgroundColor: '#a67c52', color: 'white', border: 'none',
       padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer'
     },
-    buttonSecondary: {
-      backgroundColor: '#c2a878', color: '#3e2c1c', border: 'none',
-      padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer'
-    },
     buttonCancel: {
       backgroundColor: '#8b6b4a', color: 'white', border: 'none',
       padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer'
@@ -98,60 +146,74 @@ export default function Login({ onClose, onLoginSuccess }) {
     formGroup: { marginBottom: '1rem', display: 'flex', flexDirection: 'column' },
     input: { padding: '0.5rem', borderRadius: '8px', border: '1px solid #c2a878', fontSize: '1rem', marginTop: '0.3rem' },
     errorMessage: { color: '#b00020', textAlign: 'center', marginBottom: '1rem' },
+    successMessage: { color: '#1b5e20', textAlign: 'center', marginBottom: '1rem' },
+    link: { color: '#4b3621', cursor: 'pointer', margin: '0 0.25rem' },
   };
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
+    <div style={styles.overlay} onClick={() => setIsVisible(false)}>
       <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={styles.title}>Iniciar Sesión</div>
-        <div style={styles.message}>Ingresa tus credenciales para acceder al sistema</div>
-        <form onSubmit={handleSubmit}>
-          {error && <div style={styles.errorMessage}>⚠️ {error}</div>}
-          <div style={styles.formGroup}>
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={credentials.email}
-              onChange={handleInputChange}
-              placeholder="tu.email@ejemplo.com"
-              disabled={loading}
-              style={styles.input}
-              required
-            />
-          </div>
-          <div style={styles.formGroup}>
-            <label htmlFor="password">Contraseña</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={credentials.password}
-              onChange={handleInputChange}
-              placeholder="Tu contraseña"
-              minLength="6"
-              disabled={loading}
-              style={styles.input}
-              required
-            />
-          </div>
-          <div style={styles.buttonGroup}>
-            <button type="submit" style={styles.buttonPrimary} disabled={loading}>
-              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-            </button>
-            <button type="button" style={styles.buttonCancel} onClick={onClose}>Cancelar</button>
-          </div>
-        </form>
-        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-          <p>
-            ¿No tienes cuenta? <span style={{ color: '#c2a878' }}>Contacta al administrador</span>
-          </p>
-          <div style={{ marginTop: '0.5rem' }}>
-            <Link to="/forgot-username" style={{ color: '#4b3621', marginRight: '0.5rem' }}>¿Olvidaste tu nombre de usuario?</Link>
-            <Link to="/forgot-password" style={{ color: '#4b3621' }}>¿Olvidaste tu contraseña?</Link>
-          </div>
-        </div>
+        {mode === 'login' && (
+          <>
+            <div style={styles.title}>Iniciar Sesión</div>
+            <div style={styles.message}>Ingresa tus credenciales</div>
+            <form onSubmit={handleLoginSubmit}>
+              {loginError && <div style={styles.errorMessage}>⚠️ {loginError}</div>}
+              <div style={styles.formGroup}>
+                <label>Email</label>
+                <input type="email" name="email" value={credentials.email} onChange={handleLoginChange} placeholder="tu.email@ejemplo.com" style={styles.input} required disabled={loginLoading}/>
+              </div>
+              <div style={styles.formGroup}>
+                <label>Contraseña</label>
+                <input type="password" name="password" value={credentials.password} onChange={handleLoginChange} placeholder="Tu contraseña" style={styles.input} required minLength={6} disabled={loginLoading}/>
+              </div>
+              <div style={styles.buttonGroup}>
+                <button type="submit" style={styles.buttonPrimary} disabled={loginLoading}>{loginLoading ? 'Iniciando...' : 'Iniciar Sesión'}</button>
+                <button type="button" style={styles.buttonCancel} onClick={() => setIsVisible(false)}>Cancelar</button>
+              </div>
+            </form>
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+              <span style={styles.link} onClick={() => setMode('forgotUsername')}>¿Olvidaste tu nombre de usuario?</span> | 
+              <span style={styles.link} onClick={() => setMode('forgotPassword')}>¿Olvidaste tu contraseña?</span>
+            </div>
+          </>
+        )}
+
+        {mode === 'forgotUsername' && (
+          <>
+            <div style={styles.title}>Recuperar Usuario</div>
+            <form onSubmit={handleForgotUsername}>
+              <div style={styles.formGroup}>
+                <label>Correo Electrónico</label>
+                <input type="email" value={emailFU} onChange={(e) => setEmailFU(e.target.value)} placeholder="correo registrado" style={styles.input} required disabled={loadingFU}/>
+              </div>
+              {messageFU && <div style={styles.successMessage}>{messageFU}</div>}
+              {errorFU && <div style={styles.errorMessage}>{errorFU}</div>}
+              <div style={styles.buttonGroup}>
+                <button type="submit" style={styles.buttonPrimary} disabled={loadingFU}>{loadingFU ? 'Enviando...' : 'Recuperar Usuario'}</button>
+                <button type="button" style={styles.buttonCancel} onClick={() => setMode('login')}>Volver</button>
+              </div>
+            </form>
+          </>
+        )}
+
+        {mode === 'forgotPassword' && (
+          <>
+            <div style={styles.title}>Recuperar Contraseña</div>
+            <form onSubmit={handleForgotPassword}>
+              <div style={styles.formGroup}>
+                <label>Correo Electrónico</label>
+                <input type="email" value={emailFP} onChange={(e) => setEmailFP(e.target.value)} placeholder="correo registrado" style={styles.input} required disabled={loadingFP}/>
+              </div>
+              {messageFP && <div style={styles.successMessage}>{messageFP}</div>}
+              {errorFP && <div style={styles.errorMessage}>{errorFP}</div>}
+              <div style={styles.buttonGroup}>
+                <button type="submit" style={styles.buttonPrimary} disabled={loadingFP}>{loadingFP ? 'Enviando...' : 'Recuperar Contraseña'}</button>
+                <button type="button" style={styles.buttonCancel} onClick={() => setMode('login')}>Volver</button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

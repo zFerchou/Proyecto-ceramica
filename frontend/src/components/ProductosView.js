@@ -138,7 +138,9 @@ export default function ProductosView() {
                 <div style={styles.productImagePlaceholder}>
                   {p.imagen_url ? (
                     <img
-                      src={`${process.env.REACT_APP_API_BASE}${p.imagen_url.replace(/^\/public/, "")}`}
+                      src={`${
+                        process.env.REACT_APP_API_BASE
+                      }${p.imagen_url.replace(/^\/public/, "")}`}
                       alt={p.nombre}
                       style={{
                         width: "100%",
@@ -178,7 +180,9 @@ export default function ProductosView() {
             <div style={styles.detailLeft}>
               {selected.imagen_url ? (
                 <img
-                  src={`${process.env.REACT_APP_API_BASE}${selected.imagen_url.replace(/^\/public/, "")}`}
+                  src={`${
+                    process.env.REACT_APP_API_BASE
+                  }${selected.imagen_url.replace(/^\/public/, "")}`}
                   alt={selected.nombre}
                   style={{
                     width: "100%",
@@ -201,15 +205,15 @@ export default function ProductosView() {
                 {selected.descripcion || "Pieza de cerámica artesanal."}
               </p>
 
-              {/* Código de barras removido en ProductosView por solicitud. */}
-
               {/* --- Mostrar QR --- */}
               {selected.qr_image_path && (
                 <div style={{ marginTop: "1rem", textAlign: "center" }}>
                   <strong>Código QR:</strong>
                   <div style={{ marginTop: "0.5rem" }}>
                     <img
-                      src={`${process.env.REACT_APP_API_BASE}${selected.qr_image_path.replace(/^\/public/, "")}`}
+                      src={`${
+                        process.env.REACT_APP_API_BASE
+                      }${selected.qr_image_path.replace(/^\/public/, "")}`}
                       alt={`QR de ${selected.nombre}`}
                       style={{
                         maxWidth: 200,
@@ -229,7 +233,12 @@ export default function ProductosView() {
                 </span>
                 {selected.id_categoria != null && (
                   <span style={styles.metaItem}>
-                    <strong>Categoría ID:</strong> {selected.id_categoria}
+                    <strong>Categoría:</strong>{" "}
+                    {{
+                      1: "Joyería",
+                      2: "Macetas",
+                      3: "Productos de cocina",
+                    }[selected.id_categoria] || "Desconocida"}
                   </span>
                 )}
               </div>
@@ -240,7 +249,9 @@ export default function ProductosView() {
                   style={styles.cta}
                   onClick={() =>
                     window.open(
-                      `${process.env.REACT_APP_API_BASE}${selected.qr_image_path.replace(/^\/public/, "")}`,
+                      `${
+                        process.env.REACT_APP_API_BASE
+                      }${selected.qr_image_path.replace(/^\/public/, "")}`,
                       "_blank"
                     )
                   }
@@ -307,22 +318,25 @@ const styles = {
     gap: "1rem",
   },
   card: {
-    backgroundColor: COLORS.arena,
-    borderRadius: 16,
-    overflow: "hidden",
-    border: `1px solid ${COLORS.carbon}20`,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    cursor: "pointer",
-    transition:
-      "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
-  },
-  cardHover: {
-    transform: "translateY(-2px)",
-    backgroundColor: COLORS.hoverSand,
-    boxShadow:
-      "0 10px 24px rgba(176,131,106,0.35), 0 0 0 2px rgba(176,131,106,0.35)",
-    borderColor: COLORS.terracota,
-  },
+  backgroundColor: COLORS.arena,
+  borderRadius: 16,
+  overflow: "hidden",
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: `${COLORS.carbon}20`,
+  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  cursor: "pointer",
+  transition:
+    "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
+},
+cardHover: {
+  transform: "translateY(-2px)",
+  backgroundColor: COLORS.hoverSand,
+  boxShadow:
+    "0 10px 24px rgba(176,131,106,0.35), 0 0 0 2px rgba(176,131,106,0.35)",
+  borderColor: COLORS.terracota,
+},
+
   cardImage: { height: 160, backgroundColor: "#fff" },
   productImagePlaceholder: {
     height: "100%",

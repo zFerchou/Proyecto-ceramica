@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 import productoRoutes from "./routes/productoRoutes.js";
 import ventaRoutes from "./routes/ventaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import usuarioRoutes from "./routes/usuarioRoutes.js"; // ✅ Ruta de usuarios
+import usuarioRoutes from "./routes/usuarioRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
@@ -25,10 +25,8 @@ app.use("/qr", express.static(path.join(__dirname, "public/qr")));
 
 // --- Configuración de CORS ---
 const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];
-
 app.use(cors({
   origin: function (origin, callback) {
-    // Permitir solicitudes sin origin (como Postman o cURL)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -51,7 +49,7 @@ app.use("/api/productos", productoRoutes);
 app.use("/api/ventas", ventaRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/auth", authRoutes); // ✅ Autenticación
+app.use("/auth", authRoutes);
 
 // --- Middleware: Errores de parseo JSON ---
 app.use((err, req, res, next) => {
@@ -63,6 +61,15 @@ app.use((err, req, res, next) => {
     });
   }
   next(err);
+});
+
+// --- Servir React en producción ---
+app.use(express.static(path.join(__dirname, "../frontend/build"))); // Ahora apunta a frontend/build
+
+// --- Redirigir cualquier ruta no API ni /auth a index.html ---
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+  res.sendFile(path.join(__dirname, "../frontend/build", 'index.html'));
 });
 
 // --- Middleware: Handler global de errores ---

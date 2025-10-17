@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import loginapi from '../api/loginapi';
+import loginapi from '../api/loginApi';
 
 export default function Verificar2FA({ userId, email, onSuccess, onError, onClose }) {
   const [codigo, setCodigo] = useState('');

@@ -174,4 +174,16 @@ router.post('/reset-password', resetPassword);
  */
 router.post('/verify-token', verifyToken);
 
+/**
+ * Ruta opcional para obtener el token desde la URL
+ * Esto no reemplaza reset-password POST, solo devuelve el token recibido
+ * útil para debug o frontend React Router
+ */
+router.get('/reset-password/:token', (req, res) => {
+  res.json({
+    token: req.params.token,
+    message: 'Token recibido, use POST /auth/reset-password para cambiar la contraseña'
+  });
+});
+
 export default router;
