@@ -10,6 +10,7 @@ export const getProductosResumen = async (req, res) => {
              p.nombre,
              p.descripcion,
              p.precio,
+             p.imagen_url,
              p.cantidad AS stock,
              COALESCE(SUM(tp.cantidad), 0) AS ventas,
              ('/qr/' || q.codigo_qr || '.png') AS qr_image_path
@@ -18,7 +19,7 @@ export const getProductosResumen = async (req, res) => {
       LEFT JOIN ticket_producto tp ON tp.id_producto = p.id_producto
       LEFT JOIN ticket t ON t.id_ticket = tp.id_ticket
       LEFT JOIN venta v ON v.id_venta = t.id_venta
-      GROUP BY p.id_producto, p.nombre, p.descripcion, p.precio, p.cantidad, q.codigo_qr
+      GROUP BY p.id_producto, p.nombre, p.descripcion, p.precio, p.imagen_url, p.cantidad, q.codigo_qr
       ORDER BY ventas DESC, p.id_producto DESC
       LIMIT 3`;
 
@@ -27,6 +28,7 @@ export const getProductosResumen = async (req, res) => {
              p.nombre,
              p.descripcion,
              p.precio,
+             p.imagen_url,
              p.cantidad AS stock,
              0 AS ventas,
              ('/qr/' || q.codigo_qr || '.png') AS qr_image_path
@@ -40,6 +42,7 @@ export const getProductosResumen = async (req, res) => {
         p.nombre,
         p.descripcion,
         p.precio,
+        p.imagen_url,
         p.cantidad AS stock,
         COALESCE(SUM(tp.cantidad), 0) AS ventas,
         ('/qr/' || q.codigo_qr || '.png') AS qr_image_path
@@ -47,7 +50,7 @@ export const getProductosResumen = async (req, res) => {
       LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
       LEFT JOIN ticket_producto tp ON tp.id_producto = p.id_producto
       WHERE p.cantidad <= 3
-      GROUP BY p.id_producto, p.nombre, p.descripcion, p.precio, p.cantidad, q.codigo_qr
+      GROUP BY p.id_producto, p.nombre, p.descripcion, p.precio, p.imagen_url, p.cantidad, q.codigo_qr
       ORDER BY p.cantidad ASC, p.id_producto DESC
       LIMIT 3`;
 

@@ -1,14 +1,24 @@
 // Simple API helper
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3000';
+export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3000';
 
 // Productos
-export async function postProducto(data) {
-  const res = await fetch(`${API_BASE}/api/productos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  return res;
+export async function postProducto(data, file) {
+  const hasFile = !!file;
+  if (hasFile) {
+    const form = new FormData();
+    Object.entries(data || {}).forEach(([k, v]) => form.append(k, v ?? ""));
+    form.append('imagen', file);
+    return fetch(`${API_BASE}/api/productos`, {
+      method: 'POST',
+      body: form,
+    });
+  } else {
+    return fetch(`${API_BASE}/api/productos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export async function putActualizarStock(id_producto, data) {

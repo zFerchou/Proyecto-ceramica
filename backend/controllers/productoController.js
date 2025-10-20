@@ -1,9 +1,25 @@
 import { pool } from "../config/db.js";
 import { v4 as uuidv4 } from "uuid";
-import QRCode from "qrcode";
+// Eliminado guardado de imagen QR en disco; QR se mostrará dinámicamente en el frontend
+// import QRCode from "qrcode";
+// import fs from "fs";
+// import path from "path";
+import crypto from "crypto";
+import sharp from "sharp";
 import fs from "fs";
 import path from "path";
-import crypto from "crypto";
+import { fileURLToPath } from "url";
+
+// __dirname helper for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function sanitizeProductName(name) {
+  if (!name || typeof name !== "string") return "imagen";
+  const trimmed = name.trim();
+  const sanitized = trimmed.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+  return sanitized || "imagen";
+}
 
 // -------------------- Helper de validación --------------------
 const validateNuevoProducto = (body) => {
@@ -39,7 +55,28 @@ const validateNuevoProducto = (body) => {
 
 // -------------------- Crear producto --------------------
 export const crearProducto = async (req, res) => {
-  const validationErrors = validateNuevoProducto(req.body);
+  // Coercer valores numéricos cuando vienen como strings (multipart/form-data)
+  const raw = req.body || {};
+  const parsedPayload = {
+    nombre: raw.nombre,
+    descripcion: raw.descripcion,
+    cantidad:
+      typeof raw.cantidad === "string"
+        ? Number.parseInt(raw.cantidad, 10)
+        : raw.cantidad,
+    precio:
+      typeof raw.precio === "string"
+        ? Number.parseFloat(raw.precio)
+        : raw.precio,
+    id_categoria:
+      raw.id_categoria === undefined || raw.id_categoria === null || raw.id_categoria === ""
+        ? undefined
+        : typeof raw.id_categoria === "string"
+        ? Number.parseInt(raw.id_categoria, 10)
+        : raw.id_categoria,
+  };
+
+  const validationErrors = validateNuevoProducto(parsedPayload);
   if (validationErrors.length > 0) {
     return res
       .status(400)
@@ -52,7 +89,8 @@ export const crearProducto = async (req, res) => {
     cantidad,
     precio,
     id_categoria = null,
-  } = req.body;
+  } = parsedPayload;
+  const imagenFile = req.file || null;
   const client = await pool.connect();
 
   try {
@@ -71,10 +109,31 @@ export const crearProducto = async (req, res) => {
         .json({ error: "Producto con el mismo nombre ya existe", existingId });
     }
 
-    // Insertar producto
+    // Procesar imagen si fue enviada: guardar como PNG con nombre del producto sanitizado
+    let imagen_url = null;
+    if (imagenFile) {
+      try {
+        const uploadsDir = path.join(__dirname, "../public/uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const safeName = sanitizeProductName(nombre);
+        const finalName = `${safeName}.png`;
+        const finalPath = path.join(uploadsDir, finalName);
+
+        // Convertir a PNG y guardar
+        await sharp(imagenFile.buffer).png({ quality: 90 }).toFile(finalPath);
+        imagen_url = `/uploads/${finalName}`;
+      } catch (imgErr) {
+        await client.query("ROLLBACK");
+        console.error("Error procesando imagen:", imgErr);
+        return res.status(500).json({ error: "Error al procesar/guardar la imagen" });
+      }
+    }
+
     const insertProductoText = `
-      INSERT INTO producto (nombre, descripcion, cantidad, precio, id_categoria)
-      VALUES ($1, $2, $3, $4, $5) RETURNING id_producto
+      INSERT INTO producto (nombre, descripcion, cantidad, precio, id_categoria, imagen_url)
+      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_producto
     `;
     const nuevoProducto = await client.query(insertProductoText, [
       nombre,
@@ -82,6 +141,7 @@ export const crearProducto = async (req, res) => {
       cantidad,
       precio,
       id_categoria,
+      imagen_url,
     ]);
 
     if (!nuevoProducto.rows || nuevoProducto.rows.length === 0) {
@@ -109,19 +169,8 @@ export const crearProducto = async (req, res) => {
       [codigoQR, id_producto]
     );
 
-    // Crear carpeta QR si no existe
-    const qrDir = path.resolve("public", "qr");
-    if (!fs.existsSync(qrDir)) {
-      fs.mkdirSync(qrDir, { recursive: true });
-    }
-
-    // --- Aquí definimos la URL que abrirá el QR ---
+    // --- URL que abrirá el QR (no guardamos imagen en disco, solo devolvemos el link si se requiere) ---
     const frontendURL = `http://localhost:3000/producto/${id_producto}`;
-    const qrPath = path.join(qrDir, `${codigoQR}.png`);
-    await QRCode.toFile(qrPath, frontendURL, {
-      color: { dark: "#000000", light: "#FFFFFF" },
-      width: 300,
-    });
 
     await client.query("COMMIT");
 
@@ -130,8 +179,8 @@ export const crearProducto = async (req, res) => {
       id_producto,
       codigo_barras: codigoBarras,
       codigo_qr: codigoQR,
-      qr_image_path: `/qr/${codigoQR}.png`, // ✅ Ruta servida por Express
-      qr_link: frontendURL, // ✅ URL que abre el QR
+      qr_link: frontendURL,
+      imagen_url,
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -199,20 +248,19 @@ async function generarEAN13Unico(client) {
 export const listarProductos = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT 
+    `SELECT 
          p.id_producto,
          p.nombre, 
          p.descripcion, 
          p.cantidad, 
          p.precio,
          p.id_categoria,
-         '/qr/' || q.codigo_qr || '.png' AS qr_image_path,
-             p.id_categoria,
-             cb.codigo AS codigo_barras,
-             '/qr/' || q.codigo_qr || '.png' AS qr_image_path
-           FROM producto p
-           LEFT JOIN codigo_barras cb ON p.id_producto = cb.id_producto
-           LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
+      p.imagen_url,
+         cb.codigo AS codigo_barras,
+         q.codigo_qr AS codigo_qr
+       FROM producto p
+       LEFT JOIN codigo_barras cb ON p.id_producto = cb.id_producto
+       LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
        ORDER BY p.nombre ASC`
     );
 

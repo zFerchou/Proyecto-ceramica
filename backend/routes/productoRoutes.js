@@ -8,6 +8,22 @@ import {
   listarProductos
 } from "../controllers/productoController.js";
 import { generarQRProducto } from "../controllers/qrController.js"; // Controlador para QR
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configurar multer para usar memoria; guardaremos como PNG en el controlador con nombre basado en el producto
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(png|jpe?g|webp)$/i.test(file.mimetype)) cb(null, true);
+    else cb(new Error("Solo se permiten imágenes (png, jpg, jpeg, webp)"));
+  },
+});
 
 const router = express.Router();
 
@@ -49,7 +65,8 @@ const router = express.Router();
  *       400:
  *         description: Bad Request.
  */
-router.post("/", crearProducto);
+// Acepta multipart/form-data con campo 'imagen'
+router.post("/", upload.single("imagen"), crearProducto);
 
 /**
  * @swagger
