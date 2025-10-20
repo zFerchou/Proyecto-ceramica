@@ -4,10 +4,11 @@ import {
   crearVenta, 
   obtenerVenta, 
   deshacerVenta, 
-  actualizarVenta, 
-  anularProductos, 
+  actualizarVentaPorCodigo, 
+  anularProductosPorCodigo, 
   generarReporte,
-  obtenerVentas
+  obtenerVentas,
+  obtenerVentaPorCodigo
 } from '../controllers/ventaController.js';
 
 const router = Router();
@@ -98,10 +99,6 @@ router.post('/', crearVenta);
  *     tags: [Ventas]
  *     parameters:
  *       - in: query
- *         name: id_venta
- *         schema:
- *           type: integer
- *       - in: query
  *         name: codigo_venta
  *         schema:
  *           type: string
@@ -135,59 +132,86 @@ router.post('/', crearVenta);
  *                       precio:
  *                         type: number
  *       400:
- *         description: Debe enviar id_venta o codigo_venta
+ *         description: Debe enviar codigo_venta
  *       404:
  *         description: Venta no encontrada
  *       500:
  *         description: Error inesperado al consultar la venta
  */
+// Nuevo: obtener por codigo_venta vía path
+/**
+ * @swagger
+ * /ventas/codigo/{codigo_venta}:
+ *   get:
+ *     summary: "Obtener información de una venta por codigo_venta"
+ *     tags: [Ventas]
+ *     parameters:
+ *       - in: path
+ *         name: codigo_venta
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Venta encontrada
+ *       404:
+ *         description: Venta no encontrada
+ */
+router.get('/codigo/:codigo_venta', obtenerVentaPorCodigo);
+
+// Mantener consulta por query temporalmente (compatibilidad)
 router.get('/', obtenerVenta);
 
 /**
  * @swagger
- * /ventas/{id_venta}:
+ * /ventas/codigo/{codigo_venta}:
  *   put:
- *     summary: "Actualizar productos o tipo de pago de una venta"
+ *     summary: "Actualizar productos o tipo de pago de una venta por codigo_venta"
  *     tags: [Ventas]
  *     parameters:
  *       - in: path
- *         name: id_venta
+ *         name: codigo_venta
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tipo_pago:
+ *                 type: string
+ *                 enum: [Efectivo, Transacción]
+ *                 description: "Nuevo tipo de pago para la venta"
+ *               productos:
+ *                 type: array
+ *                 description: "Lista de productos a actualizar (por nombre) con sus cantidades finales"
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - nombre_producto
+ *                     - cantidad
+ *                   properties:
+ *                     nombre_producto:
+ *                       type: string
+ *                     cantidad:
+ *                       type: integer
  *     responses:
  *       200:
  *         description: Venta actualizada correctamente
  *       400:
  *         description: Solicitud inválida (tipo_pago o productos)
  *       404:
- *         description: Producto no encontrado
+ *         description: Venta o producto no encontrado
  *       500:
  *         description: Error al actualizar venta
  */
-router.put('/:id_venta', actualizarVenta);
+router.put('/codigo/:codigo_venta', actualizarVentaPorCodigo);
 
-/**
- * @swagger
- * /ventas/{id_venta}:
- *   delete:
- *     summary: "Deshacer (anular) una venta y revertir el stock por ID de venta"
- *     tags: [Ventas]
- *     parameters:
- *       - in: path
- *         name: id_venta
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Venta deshecha correctamente
- *       404:
- *         description: Venta no encontrada
- *       500:
- *         description: Error al deshacer venta
- */
-router.delete('/:id_venta', deshacerVenta);
+// Anulación completa por codigo_venta
+router.delete('/deshacer/:codigo_venta', deshacerVenta);
 
 /**
  * @swagger
@@ -219,31 +243,53 @@ router.delete('/:id_venta', deshacerVenta);
  *       500:
  *         description: Error al procesar la solicitud
  */
-router.delete('/deshacer/:codigo_venta', deshacerVenta);
+// (ruta ya definida arriba)
 
 /**
  * @swagger
- * /ventas/{id_venta}/productos:
+ * /ventas/codigo/{codigo_venta}/productos:
  *   patch:
- *     summary: "Anular o ajustar cantidades de productos específicos en una venta"
+ *     summary: "Anular o ajustar cantidades de productos específicos en una venta por codigo_venta"
  *     tags: [Ventas]
  *     parameters:
  *       - in: path
- *         name: id_venta
+ *         name: codigo_venta
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productos
+ *             properties:
+ *               productos:
+ *                 type: array
+ *                 description: "Productos a anular o ajustar (por nombre) con la cantidad a restar"
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - nombre_producto
+ *                     - cantidad
+ *                   properties:
+ *                     nombre_producto:
+ *                       type: string
+ *                     cantidad:
+ *                       type: integer
  *     responses:
  *       200:
  *         description: Productos anulados correctamente
  *       400:
  *         description: Solicitud inválida
  *       404:
- *         description: Producto no encontrado
+ *         description: Venta o producto no encontrado
  *       500:
  *         description: Error al anular productos
  */
-router.patch('/:id_venta/productos', anularProductos);
+router.patch('/codigo/:codigo_venta/productos', anularProductosPorCodigo);
 
 /**
  * @swagger

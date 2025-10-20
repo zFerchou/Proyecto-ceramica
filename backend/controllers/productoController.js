@@ -357,6 +357,21 @@ export const eliminarProducto = async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    // Obtener datos del producto (para verificar existencia y limpiar imagen luego)
+    const prodInfo = await client.query(
+      `SELECT id_producto, imagen_url FROM producto WHERE id_producto = $1`,
+      [id_producto]
+    );
+    if (prodInfo.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+    const imagen_url = prodInfo.rows[0].imagen_url;
+
+    // Eliminar dependencias primero para respetar FKs
+    await client.query(`DELETE FROM ticket_producto WHERE id_producto = $1`, [
+      id_producto,
+    ]);
     await client.query(`DELETE FROM codigo_barras WHERE id_producto = $1`, [
       id_producto,
     ]);
@@ -364,6 +379,7 @@ export const eliminarProducto = async (req, res) => {
       id_producto,
     ]);
 
+    // Eliminar producto
     const deleted = await client.query(
       `DELETE FROM producto WHERE id_producto = $1 RETURNING id_producto`,
       [id_producto]
@@ -374,6 +390,22 @@ export const eliminarProducto = async (req, res) => {
     }
 
     await client.query("COMMIT");
+
+    // Intentar eliminar la imagen del sistema de archivos (si existe)
+    try {
+      if (imagen_url) {
+        // imagen_url es como "/uploads/Nombre.png"; construir ruta física
+        const publicDir = path.join(__dirname, "../public");
+        const absPath = path.join(publicDir, imagen_url.replace(/^\/+/, ""));
+        if (fs.existsSync(absPath)) {
+          fs.unlinkSync(absPath);
+        }
+      }
+    } catch (imgErr) {
+      // No bloquear por errores de limpieza de archivos; solo loguear
+      console.warn("No se pudo eliminar la imagen del producto:", imgErr?.message || imgErr);
+    }
+
     return res.json({
       message: "Producto eliminado correctamente",
       id_producto: deleted.rows[0].id_producto,
