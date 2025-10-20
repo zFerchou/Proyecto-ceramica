@@ -246,6 +246,147 @@ export const actualizarVenta = async (req, res) => {
   }
 };
 
+// --- Helpers ---
+async function getIdVentaFromCodigo(codigo_venta) {
+  const r = await pool.query(`SELECT id_venta FROM ticket WHERE codigo_venta = $1`, [codigo_venta]);
+  return r.rowCount > 0 ? r.rows[0].id_venta : null;
+}
+
+// Obtener venta por codigo_venta (ruta por código)
+export const obtenerVentaPorCodigo = async (req, res) => {
+  const { codigo_venta } = req.params;
+  if (!codigo_venta) return res.status(400).json({ error: 'Se requiere "codigo_venta"' });
+  try {
+    const ventaResult = await pool.query(
+      `SELECT v.id_venta, v.fecha, v.tipo_pago, t.id_ticket, t.codigo_venta
+       FROM venta v
+       JOIN ticket t ON v.id_venta = t.id_venta
+       WHERE t.codigo_venta = $1`,
+      [codigo_venta]
+    );
+    if (ventaResult.rowCount === 0) return res.status(404).json({ error: 'Venta no encontrada' });
+    const venta = ventaResult.rows[0];
+    const productosResult = await pool.query(
+      `SELECT p.nombre AS nombre_producto, tp.cantidad, p.precio
+       FROM ticket_producto tp
+       JOIN producto p ON tp.id_producto = p.id_producto
+       WHERE tp.id_ticket = $1`,
+      [venta.id_ticket]
+    );
+    venta.productos = productosResult.rows;
+    return res.json(venta);
+  } catch (error) {
+    console.error('obtenerVentaPorCodigo error:', error);
+    return res.status(500).json({ error: 'Error inesperado al consultar la venta', detalle: error.message });
+  }
+};
+
+// Actualizar venta por codigo_venta
+export const actualizarVentaPorCodigo = async (req, res) => {
+  const { codigo_venta } = req.params;
+  const { tipo_pago, productos } = req.body;
+  if (!tipo_pago && (!productos || !Array.isArray(productos))) return res.status(400).json({ error: 'Debe enviar tipo_pago o productos para actualizar' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id_venta = await getIdVentaFromCodigo(codigo_venta);
+    if (!id_venta) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Venta no encontrada' }); }
+
+    if (tipo_pago) {
+      const tiposPermitidos = ["Efectivo", "Transacción"];
+      if (!tiposPermitidos.includes(tipo_pago)) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Tipo de pago inválido' }); }
+      await client.query(`UPDATE venta SET tipo_pago = $1 WHERE id_venta = $2`, [tipo_pago, id_venta]);
+    }
+
+    if (productos && productos.length > 0) {
+      for (const p of productos) {
+        const { nombre_producto, cantidad } = p;
+        const prodResult = await client.query(`SELECT id_producto, cantidad FROM producto WHERE nombre = $1`, [nombre_producto]);
+        if (prodResult.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: `Producto ${nombre_producto} no encontrado` }); }
+
+        const id_producto = prodResult.rows[0].id_producto;
+        const ventaProd = await client.query(
+          `SELECT cantidad FROM ticket_producto WHERE id_producto = $1 AND id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $2)`,
+          [id_producto, id_venta]
+        );
+        const cantidadActual = ventaProd.rowCount > 0 ? ventaProd.rows[0].cantidad : 0;
+        const delta = cantidad - cantidadActual;
+
+        if (delta > 0 && prodResult.rows[0].cantidad < delta) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Stock insuficiente para ${nombre_producto}` });
+        }
+
+        if (cantidad <= 0) {
+          await client.query(`DELETE FROM ticket_producto WHERE id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $1) AND id_producto = $2`, [id_venta, id_producto]);
+        } else if (ventaProd.rowCount > 0) {
+          await client.query(`UPDATE ticket_producto SET cantidad = $1 WHERE id_producto = $2 AND id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $3)`, [cantidad, id_producto, id_venta]);
+        } else {
+          await client.query(`INSERT INTO ticket_producto (id_ticket, id_producto, cantidad) VALUES ((SELECT id_ticket FROM ticket WHERE id_venta = $1), $2, $3)`, [id_venta, id_producto, cantidad]);
+        }
+
+        await client.query(`UPDATE producto SET cantidad = cantidad - $1 WHERE id_producto = $2`, [delta, id_producto]);
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.json({ mensaje: 'Venta actualizada correctamente', codigo_venta });
+
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(error);
+    return res.status(500).json({ error: 'Error al actualizar venta', detalle: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+// Anulación parcial por codigo_venta
+export const anularProductosPorCodigo = async (req, res) => {
+  const { codigo_venta } = req.params;
+  const { productos } = req.body;
+  if (!productos || !Array.isArray(productos)) return res.status(400).json({ error: 'Debe enviar productos a anular' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id_venta = await getIdVentaFromCodigo(codigo_venta);
+    if (!id_venta) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Venta no encontrada' }); }
+
+    for (const p of productos) {
+      const { nombre_producto, cantidad } = p;
+      const prodResult = await pool.query(`SELECT id_producto FROM producto WHERE nombre = $1`, [nombre_producto]);
+      if (prodResult.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: `Producto ${nombre_producto} no encontrado` }); }
+
+      const id_producto = prodResult.rows[0].id_producto;
+      const ticketProd = await client.query(`SELECT cantidad FROM ticket_producto WHERE id_producto = $1 AND id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $2)`, [id_producto, id_venta]);
+      if (ticketProd.rowCount === 0) continue;
+
+      const cantidadActual = ticketProd.rows[0].cantidad;
+      const nuevaCantidad = cantidadActual - cantidad;
+
+      if (nuevaCantidad <= 0) {
+        await client.query(`DELETE FROM ticket_producto WHERE id_producto = $1 AND id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $2)`, [id_producto, id_venta]);
+        await client.query(`UPDATE producto SET cantidad = cantidad + $1 WHERE id_producto = $2`, [cantidadActual, id_producto]);
+      } else {
+        await client.query(`UPDATE ticket_producto SET cantidad = $1 WHERE id_producto = $2 AND id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $3)`, [nuevaCantidad, id_producto, id_venta]);
+        await client.query(`UPDATE producto SET cantidad = cantidad + $1 WHERE id_producto = $2`, [cantidad, id_producto]);
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.json({ mensaje: 'Productos anulados correctamente', codigo_venta });
+
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(error);
+    return res.status(500).json({ error: 'Error al anular productos', detalle: error.message });
+  } finally {
+    client.release();
+  }
+};
+
 // Anulación parcial de productos
 export const anularProductos = async (req, res) => {
   const { id_venta } = req.params;

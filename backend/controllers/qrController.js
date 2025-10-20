@@ -35,3 +35,22 @@ export const generarQRProducto = async (req, res) => {
     return res.status(500).json({ error: "Error al generar QR" });
   }
 };
+
+// Variante por codigo_qr (sin usar id en la ruta)
+export const generarQRProductoPorCodigo = async (req, res) => {
+  const { codigo_qr } = req.params;
+  if (!codigo_qr) return res.status(400).json({ error: "codigo_qr es requerido" });
+  try {
+    const result = await pool.query(
+      `SELECT codigo_qr FROM codigo_qr WHERE codigo_qr = $1`,
+      [codigo_qr]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Producto o QR no encontrado" });
+    const code = result.rows[0].codigo_qr;
+    const qrDataURL = await QRCode.toDataURL(code);
+    return res.json({ codigoQR: code, qrDataURL });
+  } catch (error) {
+    console.error("generarQRProductoPorCodigo error:", error.message);
+    return res.status(500).json({ error: "Error al generar QR" });
+  }
+};
