@@ -1,9 +1,5 @@
 import { pool } from "../config/db.js";
 import { v4 as uuidv4 } from "uuid";
-// Eliminado guardado de imagen QR en disco; QR se mostrará dinámicamente en el frontend
-// import QRCode from "qrcode";
-// import fs from "fs";
-// import path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
 import fs from "fs";
@@ -55,7 +51,6 @@ const validateNuevoProducto = (body) => {
 
 // -------------------- Crear producto --------------------
 export const crearProducto = async (req, res) => {
-  // Coercer valores numéricos cuando vienen como strings (multipart/form-data)
   const raw = req.body || {};
   const parsedPayload = {
     nombre: raw.nombre,
@@ -96,7 +91,6 @@ export const crearProducto = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Verificar si ya existe un producto con el mismo nombre
     const existsByName = await client.query(
       `SELECT id_producto FROM producto WHERE nombre = $1`,
       [nombre]
@@ -109,7 +103,6 @@ export const crearProducto = async (req, res) => {
         .json({ error: "Producto con el mismo nombre ya existe", existingId });
     }
 
-    // Procesar imagen si fue enviada: guardar como PNG con nombre del producto sanitizado
     let imagen_url = null;
     if (imagenFile) {
       try {
@@ -121,7 +114,6 @@ export const crearProducto = async (req, res) => {
         const finalName = `${safeName}.png`;
         const finalPath = path.join(uploadsDir, finalName);
 
-        // Convertir a PNG y guardar
         await sharp(imagenFile.buffer).png({ quality: 90 }).toFile(finalPath);
         imagen_url = `/uploads/${finalName}`;
       } catch (imgErr) {
@@ -153,23 +145,19 @@ export const crearProducto = async (req, res) => {
 
     const id_producto = nuevoProducto.rows[0].id_producto;
 
-  // Generar códigos únicos
-  const codigoBarras = await generarEAN13Unico(client);
-  const codigoQR = uuidv4();
+    const codigoBarras = await generarEAN13Unico(client);
+    const codigoQR = uuidv4();
 
-    // Insertar código de barras
     await client.query(
       `INSERT INTO codigo_barras (codigo, id_producto) VALUES ($1, $2)`,
       [codigoBarras, id_producto]
     );
 
-    // Insertar código QR
     await client.query(
       `INSERT INTO codigo_qr (codigo_qr, id_producto) VALUES ($1, $2)`,
       [codigoQR, id_producto]
     );
 
-    // --- URL que abrirá el QR (no guardamos imagen en disco, solo devolvemos el link si se requiere) ---
     const frontendURL = `http://localhost:3000/producto/${id_producto}`;
 
     await client.query("COMMIT");
@@ -194,14 +182,13 @@ export const crearProducto = async (req, res) => {
 };
 
 // -------------------- Helpers de código de barras EAN-13 --------------------
-// Calcula el dígito verificador para 12 dígitos base
 function calcularCheckDigitEAN13(base12) {
   const digits = base12.split("").map((d) => parseInt(d, 10));
   if (digits.length !== 12 || digits.some((d) => Number.isNaN(d))) {
     throw new Error("Base EAN-13 inválida: requiere 12 dígitos");
   }
-  let sumOdd = 0; // posiciones 1,3,5,7,9,11 (index 0,2,4,6,8,10)
-  let sumEven = 0; // posiciones 2,4,6,8,10,12 (index 1,3,5,7,9,11)
+  let sumOdd = 0;
+  let sumEven = 0;
   for (let i = 0; i < 12; i++) {
     if ((i + 1) % 2 === 0) sumEven += digits[i];
     else sumOdd += digits[i];
@@ -220,7 +207,6 @@ function generarDigitosAleatorios(cuantos) {
 }
 
 async function generarEAN13Unico(client) {
-  // Prefijo configurable, solo dígitos. Por defecto usamos "290" (interno de tienda)
   let prefix = process.env.EAN_PREFIX || "290";
   prefix = String(prefix).replace(/\D/g, "");
   if (!prefix || prefix.length >= 12) prefix = "290";
@@ -232,7 +218,6 @@ async function generarEAN13Unico(client) {
     const check = calcularCheckDigitEAN13(base12);
     const codigo = base12 + String(check);
 
-    // Verificar unicidad
     const exists = await client.query(
       `SELECT 1 FROM codigo_barras WHERE codigo = $1 LIMIT 1`,
       [codigo]
@@ -248,14 +233,14 @@ async function generarEAN13Unico(client) {
 export const listarProductos = async (req, res) => {
   try {
     const result = await pool.query(
-    `SELECT 
+      `SELECT 
          p.id_producto,
          p.nombre, 
          p.descripcion, 
          p.cantidad, 
          p.precio,
          p.id_categoria,
-      p.imagen_url,
+         p.imagen_url,
          cb.codigo AS codigo_barras,
          q.codigo_qr AS codigo_qr
        FROM producto p
@@ -314,18 +299,14 @@ export const actualizarStockPorCodigo = async (req, res) => {
 
   try {
     const prod = await pool.query(
-      `
-      SELECT p.id_producto 
-      FROM producto p 
-      JOIN codigo_barras c ON p.id_producto = c.id_producto 
-      WHERE c.codigo = $1
-    `,
+      `SELECT p.id_producto 
+       FROM producto p 
+       JOIN codigo_barras c ON p.id_producto = c.id_producto 
+       WHERE c.codigo = $1`,
       [codigo]
     );
     if (prod.rowCount === 0)
-      return res
-        .status(404)
-        .json({ error: "Producto no encontrado para el codigo" });
+      return res.status(404).json({ error: "Producto no encontrado para el codigo" });
 
     const id_producto = prod.rows[0].id_producto;
     const producto = await pool.query(
@@ -357,7 +338,6 @@ export const eliminarProducto = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Obtener datos del producto (para verificar existencia y limpiar imagen luego)
     const prodInfo = await client.query(
       `SELECT id_producto, imagen_url FROM producto WHERE id_producto = $1`,
       [id_producto]
@@ -368,18 +348,10 @@ export const eliminarProducto = async (req, res) => {
     }
     const imagen_url = prodInfo.rows[0].imagen_url;
 
-    // Eliminar dependencias primero para respetar FKs
-    await client.query(`DELETE FROM ticket_producto WHERE id_producto = $1`, [
-      id_producto,
-    ]);
-    await client.query(`DELETE FROM codigo_barras WHERE id_producto = $1`, [
-      id_producto,
-    ]);
-    await client.query(`DELETE FROM codigo_qr WHERE id_producto = $1`, [
-      id_producto,
-    ]);
+    await client.query(`DELETE FROM ticket_producto WHERE id_producto = $1`, [id_producto]);
+    await client.query(`DELETE FROM codigo_barras WHERE id_producto = $1`, [id_producto]);
+    await client.query(`DELETE FROM codigo_qr WHERE id_producto = $1`, [id_producto]);
 
-    // Eliminar producto
     const deleted = await client.query(
       `DELETE FROM producto WHERE id_producto = $1 RETURNING id_producto`,
       [id_producto]
@@ -391,10 +363,8 @@ export const eliminarProducto = async (req, res) => {
 
     await client.query("COMMIT");
 
-    // Intentar eliminar la imagen del sistema de archivos (si existe)
     try {
       if (imagen_url) {
-        // imagen_url es como "/uploads/Nombre.png"; construir ruta física
         const publicDir = path.join(__dirname, "../public");
         const absPath = path.join(publicDir, imagen_url.replace(/^\/+/, ""));
         if (fs.existsSync(absPath)) {
@@ -402,7 +372,6 @@ export const eliminarProducto = async (req, res) => {
         }
       }
     } catch (imgErr) {
-      // No bloquear por errores de limpieza de archivos; solo loguear
       console.warn("No se pudo eliminar la imagen del producto:", imgErr?.message || imgErr);
     }
 
@@ -432,9 +401,7 @@ export const actualizarDetalles = async (req, res) => {
     precio === undefined &&
     id_categoria === undefined
   ) {
-    return res
-      .status(400)
-      .json({ error: "At least one field must be provided" });
+    return res.status(400).json({ error: "At least one field must be provided" });
   }
 
   const updates = [];
@@ -498,3 +465,6 @@ export const actualizarDetalles = async (req, res) => {
     client.release();
   }
 };
+
+// -------------------- Exportar helpers para tests --------------------
+export { sanitizeProductName, calcularCheckDigitEAN13, generarDigitosAleatorios };
