@@ -13,7 +13,14 @@ const COLORS = {
   hoverSand: "#E2CFC3",
 };
 
-export default function ProductosView() {
+// Mapeo de categorías
+const CATEGORIAS = {
+  1: "Joyería",
+  2: "Macetas", 
+  3: "Productos de cocina"
+};
+
+export default function ProductosView({ filter = null }) {
   const [productos, setProductos] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,6 +31,14 @@ export default function ProductosView() {
     typeof window !== "undefined" ? window.innerWidth < 768 : false
   );
   const [bgOffset, setBgOffset] = useState(0);
+  const [activeFilter, setActiveFilter] = useState(filter);
+
+  // Sincronizar el filtro cuando cambia la prop
+  useEffect(() => {
+    if (filter !== activeFilter) {
+      setActiveFilter(filter);
+    }
+  }, [filter]);
 
   // --- Cargar productos desde la API ---
   useEffect(() => {
@@ -72,16 +87,50 @@ export default function ProductosView() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // --- Filtrar productos por búsqueda ---
+  // --- Filtrar productos por categoría y búsqueda ---
   const filtered = useMemo(() => {
+    let filteredProductos = productos;
+    
+    // Aplicar filtro de categoría si existe
+    if (activeFilter && activeFilter !== 0) {
+      filteredProductos = filteredProductos.filter(p => p.id_categoria === activeFilter);
+    }
+
+    // Aplicar búsqueda por texto
     const q = query.trim().toLowerCase();
-    if (!q) return productos;
-    return productos.filter(
-      (p) =>
-        (p.nombre || "").toLowerCase().includes(q) ||
-        (p.descripcion || "").toLowerCase().includes(q)
-    );
-  }, [productos, query]);
+    if (q) {
+      filteredProductos = filteredProductos.filter(
+        (p) =>
+          (p.nombre || "").toLowerCase().includes(q) ||
+          (p.descripcion || "").toLowerCase().includes(q)
+      );
+    }
+
+    return filteredProductos;
+  }, [productos, query, activeFilter]);
+
+  // Obtener el título de la categoría activa
+  const getFilterTitle = () => {
+    if (!activeFilter || activeFilter === 0) {
+      return "🌟 Todos los Productos";
+    }
+    return `${getCategoriaIcon(activeFilter)} ${CATEGORIAS[activeFilter]}`;
+  };
+
+  // Obtener icono de categoría
+  const getCategoriaIcon = (idCategoria) => {
+    const icons = {
+      1: "💎",
+      2: "🏺", 
+      3: "🍽️"
+    };
+    return icons[idCategoria] || "📦";
+  };
+
+  // Función para limpiar filtro
+  const clearFilter = () => {
+    setActiveFilter(null);
+  };
 
   return (
     <div style={styles.page}>
@@ -97,8 +146,30 @@ export default function ProductosView() {
       <div style={styles.container}>
         {/* --- Encabezado --- */}
         <header style={styles.header}>
-          <h1 style={styles.title}>Colección Santo Barro</h1>
-          <p style={styles.subtitle}>Piezas únicas hechas a mano</p>
+          <h1 style={styles.title}>{getFilterTitle()}</h1>
+          <p style={styles.subtitle}>
+            {activeFilter && activeFilter !== 0 
+              ? `Categoría: ${CATEGORIAS[activeFilter]}` 
+              : 'Piezas únicas hechas a mano'
+            }
+          </p>
+          
+          {/* Filtros activos - SOLO se muestra cuando hay un filtro activo real */}
+          {activeFilter && activeFilter !== 0 && (
+            <div style={styles.activeFilter}>
+              <span style={styles.filterBadge}>
+                {getFilterTitle()}
+                <button 
+                  onClick={clearFilter}
+                  style={styles.clearFilter}
+                  aria-label="Quitar filtro"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+          )}
+          
           <div style={styles.searchRow}>
             <input
               aria-label="Buscar productos"
@@ -107,6 +178,15 @@ export default function ProductosView() {
               onChange={(e) => setQuery(e.target.value)}
               style={styles.searchInput}
             />
+            {/* Botón "Ver Todos" - SOLO se muestra cuando hay filtro activo */}
+            {activeFilter && activeFilter !== 0 && (
+              <button 
+                onClick={clearFilter}
+                style={styles.clearFilterBtn}
+              >
+                Ver Todos
+              </button>
+            )}
           </div>
         </header>
 
@@ -114,7 +194,22 @@ export default function ProductosView() {
         {error && <div style={styles.errorBox}>{String(error)}</div>}
         {loading && <div style={styles.loading}>Cargando productos...</div>}
         {!loading && filtered.length === 0 && (
-          <div style={styles.empty}>No se encontraron productos.</div>
+          <div style={styles.empty}>
+            {activeFilter && activeFilter !== 0
+              ? `No hay productos en la categoría "${CATEGORIAS[activeFilter]}".` 
+              : "No se encontraron productos."
+            }
+            <br />
+            <button 
+              onClick={() => {
+                clearFilter();
+                setQuery('');
+              }}
+              style={styles.resetFiltersBtn}
+            >
+              Ver todos los productos
+            </button>
+          </div>
         )}
 
         {/* --- Grid de productos --- */}
@@ -143,7 +238,7 @@ export default function ProductosView() {
                       alt={p.nombre}
                       onError={(e) => {
                         e.currentTarget.onerror = null;
-                        e.currentTarget.src = ""; // hide if missing
+                        e.currentTarget.src = "";
                         e.currentTarget.alt = "Imagen no disponible";
                       }}
                       style={{
@@ -165,6 +260,12 @@ export default function ProductosView() {
                 <div style={styles.cardPrice}>
                   ${Number(p.precio).toFixed(2)}
                 </div>
+                {/* Mostrar categoría del producto */}
+                {p.id_categoria && (
+                  <div style={styles.categoriaBadge}>
+                    {getCategoriaIcon(p.id_categoria)} {CATEGORIAS[p.id_categoria]}
+                  </div>
+                )}
               </div>
             </article>
           ))}
@@ -212,8 +313,6 @@ export default function ProductosView() {
                 {selected.descripcion || "Pieza de cerámica artesanal."}
               </p>
 
-              {/* Código de barras removido en ProductosView por solicitud. */}
-
               {/* --- Mostrar QR dinámico --- */}
               <div style={{ marginTop: "1rem", textAlign: "center" }}>
                 <strong>Código QR:</strong>
@@ -232,11 +331,7 @@ export default function ProductosView() {
                 {selected.id_categoria != null && (
                   <span style={styles.metaItem}>
                     <strong>Categoría:</strong>{" "}
-                    {{
-                      1: "Joyería",
-                      2: "Macetas",
-                      3: "Productos de cocina",
-                    }[selected.id_categoria] || "Desconocida"}
+                    {CATEGORIAS[selected.id_categoria] || "Desconocida"}
                   </span>
                 )}
               </div>
@@ -271,7 +366,6 @@ export default function ProductosView() {
   );
 }
 
-// --- Estilos en objeto ---
 const styles = {
   page: {
     minHeight: "100vh",
@@ -299,10 +393,46 @@ const styles = {
   header: { textAlign: "center", marginBottom: "1.5rem" },
   title: { color: COLORS.terracota, fontSize: "2rem", marginBottom: "0.25rem" },
   subtitle: { color: COLORS.carbon, opacity: 0.8 },
-  searchRow: { marginTop: "1rem", display: "flex", justifyContent: "center" },
+  activeFilter: {
+    margin: "1rem 0",
+    display: "flex",
+    justifyContent: "center",
+  },
+  filterBadge: {
+    background: `linear-gradient(135deg, ${COLORS.terracota} 0%, ${COLORS.grisPiedra} 100%)`,
+    color: "white",
+    padding: "0.5rem 1rem",
+    borderRadius: "20px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  clearFilter: {
+    background: "rgba(255,255,255,0.2)",
+    border: "none",
+    color: "white",
+    borderRadius: "50%",
+    width: "20px",
+    height: "20px",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchRow: { 
+    marginTop: "1rem", 
+    display: "flex", 
+    justifyContent: "center",
+    gap: "0.5rem",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   searchInput: {
     width: "100%",
-    maxWidth: 520,
+    maxWidth: 400,
     padding: "0.8rem 1rem",
     borderRadius: 12,
     border: `1px solid ${COLORS.arena}`,
@@ -310,31 +440,39 @@ const styles = {
     outline: "none",
     color: COLORS.carbon,
   },
+  clearFilterBtn: {
+    background: COLORS.carbon,
+    color: "white",
+    border: "none",
+    padding: "0.8rem 1.2rem",
+    borderRadius: "12px",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    fontWeight: "500",
+    whiteSpace: "nowrap",
+  },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
     gap: "1rem",
   },
   card: {
-  backgroundColor: COLORS.arena,
-  borderRadius: 16,
-  overflow: "hidden",
-  borderWidth: "1px",
-  borderStyle: "solid",
-  borderColor: `${COLORS.carbon}20`,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-  cursor: "pointer",
-  transition:
-    "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
-},
-cardHover: {
-  transform: "translateY(-2px)",
-  backgroundColor: COLORS.hoverSand,
-  boxShadow:
-    "0 10px 24px rgba(176,131,106,0.35), 0 0 0 2px rgba(176,131,106,0.35)",
-  borderColor: COLORS.terracota,
-},
-
+    backgroundColor: COLORS.arena,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: `${COLORS.carbon}20`,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    cursor: "pointer",
+    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
+  },
+  cardHover: {
+    transform: "translateY(-2px)",
+    backgroundColor: COLORS.hoverSand,
+    boxShadow: "0 10px 24px rgba(176,131,106,0.35), 0 0 0 2px rgba(176,131,106,0.35)",
+    borderColor: COLORS.terracota,
+  },
   cardImage: { height: 160, backgroundColor: "#fff" },
   productImagePlaceholder: {
     height: "100%",
@@ -344,10 +482,20 @@ cardHover: {
     color: COLORS.carbon,
     opacity: 0.7,
   },
-  cardBody: { padding: "0.9rem 1rem" },
+  cardBody: { padding: "0.9rem 1rem", position: "relative" },
   cardTitle: { margin: 0, fontSize: "1.05rem", color: COLORS.carbon },
-  cardDesc: { margin: "0.35rem 0 0.5rem", fontSize: "0.9rem", opacity: 0.8 },
-  cardPrice: { color: COLORS.terracota, fontWeight: 700 },
+  cardDesc: { margin: "0.35rem 0 0.5rem", fontSize: "0.9rem", opacity: 0.8, minHeight: "40px" },
+  cardPrice: { color: COLORS.terracota, fontWeight: 700, fontSize: "1.1rem" },
+  categoriaBadge: {
+    background: "rgba(176, 131, 106, 0.15)",
+    color: COLORS.terracota,
+    padding: "0.3rem 0.6rem",
+    borderRadius: "8px",
+    fontSize: "0.75rem",
+    fontWeight: "600",
+    marginTop: "0.5rem",
+    display: "inline-block",
+  },
   overlay: {
     position: "fixed",
     inset: 0,
@@ -411,5 +559,20 @@ cardHover: {
     opacity: 0.85,
   },
   loading: { textAlign: "center", margin: "1rem 0" },
-  empty: { textAlign: "center", margin: "1rem 0" },
+  empty: { 
+    textAlign: "center", 
+    margin: "2rem 0",
+    color: COLORS.grisPiedra,
+    lineHeight: "1.6",
+  },
+  resetFiltersBtn: {
+    background: COLORS.terracota,
+    color: "white",
+    border: "none",
+    padding: "0.8rem 1.5rem",
+    borderRadius: "10px",
+    cursor: "pointer",
+    marginTop: "1rem",
+    fontSize: "0.9rem",
+  },
 };

@@ -4,7 +4,7 @@ import SalesPage from "../components/SalesPage";
 import ProductosView from "../components/ProductosView";
 import Login from "../components/Login";
 import authService from "../services/authService";
-import { getProductosResumenDashboard, API_BASE } from "../api/api";
+import { getProductosResumenDashboard, API_BASE, getProductos } from "../api/api";
 
 const cliente = {
   nombre: "Santo Barro Cerámica",
@@ -19,66 +19,27 @@ const cliente = {
   mensajePromocional: "Hecho a mano, con pasión y dedicación. Decora tu mesa con la autenticidad de la cerámica"
 };
 
-// Componente Carrusel
-const Carousel = ({ productos, titulo, subtitulo }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const nextSlide = () => {
-    setCurrentIndex((prevIndex) => 
-      prevIndex === productos.length - 1 ? 0 : prevIndex + 1
-    );
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex((prevIndex) => 
-      prevIndex === 0 ? productos.length - 1 : prevIndex - 1
-    );
-  };
-
+// Componente Categorías (reemplaza al Carousel)
+const CategoriasGrid = ({ categorias }) => {
   return (
-    <div className="carousel-card">
-      <div className="card-header">
-        <h3>{titulo}</h3>
-        {subtitulo && <p className="subtitle">{subtitulo}</p>}
-      </div>
-      <div className="carousel-container">
-        <button className="carousel-btn prev" onClick={prevSlide}>❮</button>
-        <div className="carousel-content">
-          <div className="product-carousel-card">
-            <img
-              src={productos[currentIndex].imagen_url ? `${API_BASE}${productos[currentIndex].imagen_url}` : "https://via.placeholder.com/150"}
-              alt={productos[currentIndex].nombre}
-              className="carousel-image"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = "https://via.placeholder.com/150";
-              }}
-            />
-            <h4 className="carousel-product-name">{productos[currentIndex].nombre}</h4>
-            <p className="carousel-product-desc">{productos[currentIndex].descripcion}</p>
-            <p className="carousel-product-price">${productos[currentIndex].precio}</p>
-            {productos[currentIndex].categoria === 'agotando' && (
-              <span className="almost-sold-out">¡Casi Agotado!</span>
-            )}
-            {productos[currentIndex].categoria === 'top' && (
-              <span className="best-seller">★ Más Vendido</span>
-            )}
-            {typeof productos[currentIndex].stock === 'number' && (
-              <p className="stock-info">Stock: {productos[currentIndex].stock}</p>
-            )}
-          </div>
+    <div className="categorias-grid">
+      {categorias.map((categoria, index) => (
+        <div 
+          key={index}
+          className="categoria-card"
+          onClick={() => {
+            // Navegar a productos con filtro aplicado
+            window.dispatchEvent(new CustomEvent('navigateToProductos', { 
+              detail: { categoria: categoria.id } 
+            }));
+          }}
+        >
+          <div className="categoria-icon">{categoria.icono}</div>
+          <h3 className="categoria-title">{categoria.titulo}</h3>
+          <p className="categoria-subtitle">{categoria.subtitulo}</p>
+          <div className="categoria-count">{categoria.cantidad} productos</div>
         </div>
-        <button className="carousel-btn next" onClick={nextSlide}>❯</button>
-      </div>
-      <div className="carousel-dots">
-        {productos.map((_, index) => (
-          <button
-            key={index}
-            className={`dot ${index === currentIndex ? 'active' : ''}`}
-            onClick={() => setCurrentIndex(index)}
-          ></button>
-        ))}
-      </div>
+      ))}
     </div>
   );
 };
@@ -87,26 +48,58 @@ const Carousel = ({ productos, titulo, subtitulo }) => {
 const Home = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [topProductos, setTopProductos] = useState([]);
-  const [recentProductos, setRecentProductos] = useState([]);
-  const [agotandoProductos, setAgotandoProductos] = useState([]);
+  const [productos, setProductos] = useState([]);
+
+  // Definir las categorías para el grid
+  const categorias = [
+    {
+      id: 1,
+      icono: "💎",
+      titulo: "Joyería",
+      subtitulo: "Accesorios únicos en cerámica",
+      cantidad: productos.filter(p => p.id_categoria === 1).length
+    },
+    {
+      id: 2,
+      icono: "🏺",
+      titulo: "Macetas",
+      subtitulo: "Para tus plantas favoritas",
+      cantidad: productos.filter(p => p.id_categoria === 2).length
+    },
+    {
+      id: 3,
+      icono: "🍽️",
+      titulo: "Productos de Cocina",
+      subtitulo: "Vajillas y utensilios",
+      cantidad: productos.filter(p => p.id_categoria === 3).length
+    },
+    {
+      id: 0,
+      icono: "🌟",
+      titulo: "Todos los Productos",
+      subtitulo: "Explora toda nuestra colección",
+      cantidad: productos.length
+    }
+  ];
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
-      const data = await getProductosResumenDashboard();
-      if (!isMounted) return;
-      if (data && data.error) {
-        setError(data.error);
-      } else {
-        const top = (data.top || []).map(p => ({ ...p, categoria: 'top' }));
-        const rec = (data.recientes || []).map(p => ({ ...p, categoria: 'reciente' }));
-        const ago = (data.agotando || []).map(p => ({ ...p, categoria: 'agotando' }));
-        setTopProductos(top);
-        setRecentProductos(rec);
-        setAgotandoProductos(ago);
+      try {
+        const res = await getProductos();
+        const data = await res.json();
+        if (!isMounted) return;
+        
+        if (res.ok && Array.isArray(data)) {
+          setProductos(data);
+        } else {
+          setError(data?.error || 'Error al cargar productos');
+        }
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
     return () => { isMounted = false; };
   }, []);
@@ -120,29 +113,11 @@ const Home = () => {
       </header>
 
       <section className="products-section">
-        <h2 className="section-title">Nuestros Productos Destacados</h2>
+        <h2 className="section-title">Nuestras Categorías</h2>
         {loading && <p style={{ textAlign: 'center' }}>Cargando productos...</p>}
         {error && <p style={{ textAlign: 'center', color: '#c0392b' }}>Error: {error}</p>}
-        <div className="products-cards-grid">
-          {topProductos.length > 0 && (
-          <Carousel 
-            productos={topProductos}
-            titulo="🏆 Más Vendidos" 
-            subtitulo="Los favoritos de nuestros clientes"
-          />)}
-          {recentProductos.length > 0 && (
-          <Carousel 
-            productos={recentProductos} 
-            titulo="🆕 Recién Agregados" 
-            subtitulo="Las últimas creaciones"
-          />)}
-          {agotandoProductos.length > 0 && (
-          <Carousel 
-            productos={agotandoProductos} 
-            titulo="⚡ Últimas Piezas" 
-            subtitulo="¡No te quedes sin el tuyo!"
-          />)}
-        </div>
+        
+        <CategoriasGrid categorias={categorias} />
       </section>
 
       <section className="contact-section">
@@ -201,6 +176,21 @@ export default function Dashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [productosFilter, setProductosFilter] = useState(null);
+
+  // Escuchar el evento de navegación a productos con filtro
+  React.useEffect(() => {
+    const handleNavigateToProductos = (event) => {
+      setProductosFilter(event.detail.categoria);
+      setActivePage("productos");
+    };
+
+    window.addEventListener('navigateToProductos', handleNavigateToProductos);
+    
+    return () => {
+      window.removeEventListener('navigateToProductos', handleNavigateToProductos);
+    };
+  }, []);
 
   return (
     <div className="dashboard-container">
@@ -225,7 +215,6 @@ export default function Dashboard() {
                 </button>
               </li>
 
-              {/* Mostrar todas las opciones siempre */}
               <li>
                 <button onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
                   Inventario
@@ -238,7 +227,11 @@ export default function Dashboard() {
               </li>
 
               <li>
-                <button onClick={() => { setActivePage("productos"); setMenuOpen(false); }}>
+                <button onClick={() => { 
+                  setProductosFilter(null);
+                  setActivePage("productos"); 
+                  setMenuOpen(false); 
+                }}>
                   Productos
                 </button>
               </li>
@@ -278,7 +271,7 @@ export default function Dashboard() {
         {activePage === "home" && <Home />}
         {activePage === "inventory" && <InventoryPage onClose={() => setActivePage("home")} />}
         {activePage === "sales" && <SalesPage />}
-        {activePage === "productos" && <ProductosView />}
+        {activePage === "productos" && <ProductosView filter={productosFilter} />}
 
         {showLogin && !user && (
           <div className="login-modal">
@@ -295,7 +288,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Estilos */}
+      {/* Estilos completos */}
       <style>{`
         .dashboard-container {
           display: flex;
@@ -445,164 +438,83 @@ export default function Dashboard() {
           border-radius: 2px;
         }
 
-        /* PRODUCTOS SECTION */
-        .products-section {
-          margin-bottom: 60px;
-        }
-        .products-cards-grid {
+        /* CATEGORIAS GRID */
+        .categorias-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-          gap: 30px;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 25px;
           margin-bottom: 40px;
         }
 
-        /* CAROUSEL CARD */
-        .carousel-card {
+        .categoria-card {
           background: #D8D8D5;
           border-radius: 20px;
-          padding: 25px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-          transition: all 0.3s ease;
-          border: 1px solid rgba(49, 36, 31, 0.1);
-        }
-        .carousel-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 15px 40px rgba(176, 131, 106, 0.25);
-          background: #E2CFC3;
-        }
-        .card-header {
+          padding: 30px 25px;
           text-align: center;
-          margin-bottom: 20px;
-        }
-        .card-header h3 {
-          font-size: 1.4rem;
-          font-weight: 600;
-          color: #31241F;
-          margin-bottom: 5px;
-        }
-        .subtitle {
-          color: #735f53;
-          font-size: 0.9rem;
-          margin: 0;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          border: 2px solid transparent;
+          box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+          position: relative;
+          overflow: hidden;
         }
 
-        /* CAROUSEL */
-        .carousel-container {
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+        .categoria-card:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 15px 35px rgba(176, 131, 106, 0.25);
+          background: #E2CFC3;
+          border-color: #B0836A;
         }
-        .carousel-content {
-          flex: 1;
-          max-width: 280px;
-          margin: 0 15px;
+
+        .categoria-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: linear-gradient(135deg, #B0836A 0%, #735f53 100%);
+          transform: scaleX(0);
+          transition: transform 0.3s ease;
         }
-        .product-carousel-card {
-          background: #f8f9fa;
-          border-radius: 15px;
-          padding: 20px;
-          text-align: center;
-          transition: all 0.3s ease;
-          min-height: 320px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
+
+        .categoria-card:hover::before {
+          transform: scaleX(1);
         }
-        .carousel-image {
-          width: 100%;
-          height: 150px;
-          object-fit: cover;
-          border-radius: 12px;
+
+        .categoria-icon {
+          font-size: 3rem;
           margin-bottom: 15px;
+          display: block;
         }
-        .carousel-product-name {
-          font-size: 1.1rem;
+
+        .categoria-title {
+          font-size: 1.4rem;
           font-weight: 600;
           color: #31241F;
           margin-bottom: 8px;
         }
-        .carousel-product-desc {
-          font-size: 0.9rem;
+
+        .categoria-subtitle {
           color: #735f53;
+          font-size: 0.95rem;
           margin-bottom: 15px;
           line-height: 1.4;
         }
-        .carousel-product-price {
-          font-size: 1.3rem;
-          font-weight: 700;
+
+        .categoria-count {
+          background: rgba(176, 131, 106, 0.15);
           color: #B0836A;
-          margin-bottom: 10px;
-        }
-        .carousel-btn {
-          background: linear-gradient(135deg, #B0836A 0%, #735f53 100%);
-          color: white;
-          border: none;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 1.2rem;
-          transition: all 0.3s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 15px rgba(176, 131, 106, 0.3);
-        }
-        .carousel-btn:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 20px rgba(176, 131, 106, 0.4);
-        }
-        .carousel-dots {
-          display: flex;
-          justify-content: center;
-          gap: 8px;
-          margin-top: 15px;
-        }
-        .dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          border: none;
-          background: #bdc3c7;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-        .dot.active, .dot:hover {
-          background: #B0836A;
-          transform: scale(1.2);
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          display: inline-block;
         }
 
-        /* BADGES */
-        .almost-sold-out {
-          background: linear-gradient(135deg, #e74c3c, #c0392b);
-          color: white;
-          padding: 4px 12px;
-          border-radius: 15px;
-          font-size: 0.8rem;
-          font-weight: 600;
-          display: inline-block;
-          margin-top: 5px;
-          animation: pulse 2s infinite;
-        }
-        .best-seller {
-          background: linear-gradient(135deg, #f39c12, #e67e22);
-          color: white;
-          padding: 4px 12px;
-          border-radius: 15px;
-          font-size: 0.8rem;
-          font-weight: 600;
-          display: inline-block;
-          margin-top: 5px;
-        }
-        .stock-info {
-          font-size: 0.8rem;
-          color: #735f53;
-          margin-top: 5px;
-        }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
+        /* PRODUCTOS SECTION */
+        .products-section {
+          margin-bottom: 60px;
         }
 
         /* CONTACT SECTION */
@@ -690,14 +602,57 @@ export default function Dashboard() {
           font-size: 0.9rem;
         }
 
+        /* LOGIN MODAL */
+        .login-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        .modal-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+          position: relative;
+          background: white;
+          border-radius: 12px;
+          padding: 20px;
+          max-width: 400px;
+          width: 90%;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
         /* RESPONSIVE */
         @media (max-width: 768px) {
           .client-name { font-size: 2.2rem; }
-          .products-cards-grid { grid-template-columns: 1fr; }
-          .carousel-content { margin: 0 10px; }
-          .carousel-btn { width: 35px; height: 35px; font-size: 1rem; }
+          .categorias-grid { grid-template-columns: 1fr; }
           .hero-section { padding: 40px 20px; }
           .section-title { font-size: 1.8rem; }
+          .categoria-card { padding: 25px 20px; }
+          .navbar { padding: 12px 20px; }
+          .navbar-title { font-size: 1.3rem; }
+        }
+
+        @media (max-width: 480px) {
+          .client-name { font-size: 1.8rem; }
+          .description { font-size: 1rem; }
+          .promo { font-size: 0.9rem; padding: 12px 20px; }
+          .section-title { font-size: 1.5rem; }
+          .contact-grid { grid-template-columns: 1fr; }
+          .footer-content { grid-template-columns: 1fr; }
+        }
       `}</style>
     </div>
   );
