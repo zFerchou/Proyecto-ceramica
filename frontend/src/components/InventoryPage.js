@@ -370,17 +370,22 @@ export default function InventoryPage({ onClose }) {
     load();
   };
 
-  // Función para imprimir etiquetas (RESTAURADA)
+  // Función para imprimir etiquetas CORREGIDA
   const handlePrintLabels = (producto) => {
     const quantity = labelQuantities[producto.id_producto] || 1;
     
     // Crear una ventana de impresión
     const printWindow = window.open('', '_blank');
+    
+    // Obtener la URL del QR si existe
+    const qrUrl = producto.codigo_qr ? `${API_BASE}/api/productos/qr/${producto.codigo_qr}` : null;
+    
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <title>Etiquetas - ${producto.nombre}</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
           body { 
             font-family: Arial, sans-serif; 
@@ -390,35 +395,71 @@ export default function InventoryPage({ onClose }) {
             flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
+            background: white;
           }
           .label {
             width: 300px;
-            border: 1px solid #ccc;
+            height: 200px;
+            border: 1px solid #000;
             padding: 15px;
             margin: 5px;
             text-align: center;
             page-break-inside: avoid;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
           }
           .product-name {
             font-weight: bold;
             font-size: 16px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
           }
           .barcode-container {
-            margin: 10px 0;
+            margin: 5px 0;
+            display: flex;
+            justify-content: center;
+          }
+          .barcode {
+            max-width: 100%;
+            height: 40px;
           }
           .qr-container {
-            margin: 10px 0;
+            margin: 5px 0;
+            display: flex;
+            justify-content: center;
+          }
+          .qr-image {
+            width: 80px;
+            height: 80px;
           }
           .price {
             font-size: 18px;
             font-weight: bold;
             color: #2c5aa0;
-            margin: 10px 0;
+            margin: 5px 0;
+          }
+          .description {
+            font-size: 12px;
+            color: #666;
+            margin: 5px 0;
+          }
+          .code-text {
+            font-size: 10px;
+            color: #333;
+            margin: 2px 0;
           }
           @media print {
-            body { margin: 0; padding: 0; }
-            .label { border: 1px solid #000; }
+            body { 
+              margin: 0; 
+              padding: 10px;
+              background: white !important;
+            }
+            .label { 
+              border: 1px solid #000;
+              break-inside: avoid;
+            }
           }
         </style>
       </head>
@@ -429,20 +470,29 @@ export default function InventoryPage({ onClose }) {
     for (let i = 0; i < quantity; i++) {
       printWindow.document.write(`
         <div class="label">
-          <div class="product-name">${producto.nombre}</div>
-          ${producto.precio ? `<div class="price">$${producto.precio}</div>` : ''}
-          ${producto.descripcion ? `<div class="description">${producto.descripcion}</div>` : ''}
-          ${producto.codigo_barras ? `
-            <div class="barcode-container">
-              <div style="background: white; padding: 10px; display: inline-block;">
-                ${producto.codigo_barras}
+          <div>
+            <div class="product-name">${producto.nombre}</div>
+            ${producto.precio ? `<div class="price">$${parseFloat(producto.precio).toFixed(2)}</div>` : ''}
+            ${producto.descripcion ? `<div class="description">${producto.descripcion}</div>` : ''}
+          </div>
+          
+          <div>
+            ${producto.codigo_barras ? `
+              <div class="barcode-container">
+                <svg class="barcode" id="barcode-${i}"></svg>
               </div>
-            </div>
-          ` : ''}
-          <div class="qr-container">
-            <div style="background: white; padding: 10px; display: inline-block;">
-              QR Code
-            </div>
+              <div class="code-text">Código: ${producto.codigo_barras}</div>
+            ` : ''}
+            
+            ${qrUrl ? `
+              <div class="qr-container">
+                <img src="${qrUrl}" alt="QR Code" class="qr-image" onerror="this.style.display='none'">
+              </div>
+            ` : `
+              <div class="qr-container">
+                <div style="color: #999; font-size: 10px;">QR no disponible</div>
+              </div>
+            `}
           </div>
         </div>
       `);
@@ -450,12 +500,45 @@ export default function InventoryPage({ onClose }) {
 
     printWindow.document.write(`
         <script>
+          // Generar códigos de barras después de que se cargue la página
           window.onload = function() {
-            window.print();
+            // Generar códigos de barras
+            ${producto.codigo_barras ? `
+              try {
+                JsBarcode('.barcode', '${producto.codigo_barras}', {
+                  format: "EAN13",
+                  width: 2,
+                  height: 40,
+                  displayValue: false,
+                  background: "#ffffff",
+                  lineColor: "#000000"
+                });
+              } catch (error) {
+                console.error('Error generando código de barras:', error);
+                document.querySelectorAll('.barcode').forEach(bc => {
+                  bc.innerHTML = '<text x="50%" y="50%" text-anchor="middle">${producto.codigo_barras}</text>';
+                });
+              }
+            ` : ''}
+            
+            // Esperar a que las imágenes QR se carguen
             setTimeout(function() {
-              window.close();
-            }, 100);
+              window.print();
+              // Cerrar después de imprimir
+              setTimeout(function() {
+                window.close();
+              }, 500);
+            }, 1000);
           }
+          
+          // Manejar errores de carga de imágenes QR
+          document.addEventListener('error', function(e) {
+            if (e.target.tagName === 'IMG' && e.target.className === 'qr-image') {
+              e.target.style.display = 'none';
+              const container = e.target.parentElement;
+              container.innerHTML = '<div style="color: #999; font-size: 10px;">QR no disponible</div>';
+            }
+          }, true);
         </script>
       </body>
       </html>

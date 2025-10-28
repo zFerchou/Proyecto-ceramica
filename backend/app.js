@@ -30,7 +30,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use("/uploads", express.static(uploadsDir));
 
-// --- Configuración de CORS ---
+// --- Configuración de CORS CORREGIDA ---
 const allowedOrigins = ["http://localhost:3000", "http://localhost:3001"];
 app.use(cors({
   origin: function (origin, callback) {
@@ -41,7 +41,8 @@ app.use(cors({
       callback(new Error("No permitido por CORS"));
     }
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // AÑADIDO PATCH y OPTIONS
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"], // AÑADIDO headers permitidos
   credentials: true
 }));
 

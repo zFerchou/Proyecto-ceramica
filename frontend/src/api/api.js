@@ -44,13 +44,17 @@ export async function getProductos() {
   return res;
 }
 
-export async function deleteProducto(id_producto) {
-  const res = await fetch(`${API_BASE}/api/productos/${id_producto}`, { method: 'DELETE' });
+// CORREGIDO: Usar ruta por nombre en lugar de ID
+export async function deleteProducto(nombre) {
+  const res = await fetch(`${API_BASE}/api/productos/nombre/${encodeURIComponent(nombre)}`, { 
+    method: 'DELETE' 
+  });
   return res;
 }
 
-export async function patchActualizarDetalles(id_producto, data) {
-  const res = await fetch(`${API_BASE}/api/productos/${id_producto}`, {
+// CORREGIDO: Usar ruta por nombre en lugar de ID
+export async function patchActualizarDetalles(nombre, data) {
+  const res = await fetch(`${API_BASE}/api/productos/nombre/${encodeURIComponent(nombre)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
