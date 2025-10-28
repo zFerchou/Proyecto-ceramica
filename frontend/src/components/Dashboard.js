@@ -120,27 +120,7 @@ const Home = () => {
         <CategoriasGrid categorias={categorias} />
       </section>
 
-      <section className="contact-section">
-        <h2 className="section-title">Información de Contacto</h2>
-        <div className="contact-grid">
-          <div className="contact-item">
-            <h3>📞 Teléfono</h3>
-            <p>{cliente.telefono}</p>
-          </div>
-          <div className="contact-item">
-            <h3>✉️ Correo</h3>
-            <p>{cliente.correo}</p>
-          </div>
-          <div className="contact-item">
-            <h3>🏢 Categoría</h3>
-            <p>{cliente.categoria}</p>
-          </div>
-          <div className="contact-item">
-            <h3>🕒 Estado</h3>
-            <p>{cliente.estado}</p>
-          </div>
-        </div>
-      </section>
+      
 
       <footer className="footer">
         <div className="footer-content">

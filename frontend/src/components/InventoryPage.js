@@ -19,6 +19,7 @@ export default function InventoryPage({ onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [lastRegisteredProduct, setLastRegisteredProduct] = useState(null);
   const [qrModalProduct, setQrModalProduct] = useState(null); // Producto a mostrar en modal QR
+  const [labelQuantities, setLabelQuantities] = useState({}); // Estado para cantidades de etiquetas por producto
 
   // Cargar productos del backend
   const load = async () => {
@@ -28,6 +29,13 @@ export default function InventoryPage({ onClose }) {
       if (res.ok && Array.isArray(body)) {
         setProductos(body);
         setFilteredProductos(body);
+        
+        // Inicializar cantidades de etiquetas
+        const initialQuantities = {};
+        body.forEach(producto => {
+          initialQuantities[producto.id_producto] = 1;
+        });
+        setLabelQuantities(initialQuantities);
       }
     } catch (err) {
       console.error("Error al cargar productos:", err);
@@ -86,6 +94,136 @@ export default function InventoryPage({ onClose }) {
     setQrModalProduct(null);
   };
 
+  // Manejar cambio en la cantidad de etiquetas
+  const handleQuantityChange = (productId, value) => {
+    const quantity = parseInt(value) || 1;
+    if (quantity > 0) {
+      setLabelQuantities(prev => ({
+        ...prev,
+        [productId]: quantity
+      }));
+    }
+  };
+
+  // Función para imprimir etiquetas
+  const handlePrintLabels = (producto) => {
+    const quantity = labelQuantities[producto.id_producto] || 1;
+    
+    // Crear una ventana de impresión
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Etiquetas - ${producto.nombre}</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+          }
+          .label {
+            width: 300px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 5px;
+            text-align: center;
+            page-break-inside: avoid;
+          }
+          .product-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 10px;
+          }
+          .barcode-container {
+            margin: 10px 0;
+          }
+          .qr-container {
+            margin: 10px 0;
+          }
+          .price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin: 10px 0;
+          }
+          @media print {
+            body { margin: 0; padding: 0; }
+            .label { border: 1px solid #000; }
+          }
+        </style>
+      </head>
+      <body>
+    `);
+
+    // Generar las etiquetas
+    for (let i = 0; i < quantity; i++) {
+      printWindow.document.write(`
+        <div class="label">
+          <div class="product-name">${producto.nombre}</div>
+          ${producto.precio ? `<div class="price">$${producto.precio}</div>` : ''}
+          ${producto.codigo_barras ? `
+            <div class="barcode-container">
+              <svg xmlns="http://www.w3.org/2000/svg">
+                ${generateBarcodeSVG(producto.codigo_barras)}
+              </svg>
+            </div>
+          ` : ''}
+          <div class="qr-container">
+            <img src="${generateQRDataURL(JSON.stringify({ id_producto: producto.id_producto, nombre: producto.nombre }))}" 
+                 alt="QR Code" width="100" height="100" />
+          </div>
+        </div>
+      `);
+    }
+
+    printWindow.document.write(`
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() {
+              window.close();
+            }, 100);
+          }
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Función auxiliar para generar SVG del código de barras (simplificada)
+  const generateBarcodeSVG = (barcode) => {
+    // Esta es una implementación básica - puedes usar una librería más robusta si es necesario
+    return `<text x="50%" y="50%" text-anchor="middle">${barcode}</text>`;
+  };
+
+  // Función auxiliar para generar QR como data URL
+  const generateQRDataURL = (value) => {
+    // Implementación simplificada - usa tu función QRImage real aquí
+    const qrSize = 100;
+    const canvas = document.createElement('canvas');
+    canvas.width = qrSize;
+    canvas.height = qrSize;
+    const ctx = canvas.getContext('2d');
+    
+    // Fondo blanco
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, qrSize, qrSize);
+    
+    // Texto simple como placeholder
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('QR CODE', qrSize/2, qrSize/2);
+    
+    return canvas.toDataURL();
+  };
+
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>📦 Inventario</h1>
@@ -133,6 +271,7 @@ export default function InventoryPage({ onClose }) {
             <th style={styles.th}>Precio</th>
             <th style={styles.th}>Código de barras</th>
             <th style={styles.th}>QR</th>
+            <th style={styles.th}>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -181,11 +320,32 @@ export default function InventoryPage({ onClose }) {
                     <QRImage value={JSON.stringify({ id_producto: p.id_producto, nombre: p.nombre })} size={100} />
                   </div>
                 </td>
+                <td style={styles.td}>
+                  <div style={styles.labelActions}>
+                    <div style={styles.quantityInputContainer}>
+                      <label style={styles.quantityLabel}>Cantidad:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={labelQuantities[p.id_producto] || 1}
+                        onChange={(e) => handleQuantityChange(p.id_producto, e.target.value)}
+                        style={styles.quantityInput}
+                      />
+                    </div>
+                    <button
+                      onClick={() => handlePrintLabels(p)}
+                      style={styles.printButton}
+                    >
+                      🖨️ Imprimir
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="5" style={styles.noData}>
+              <td colSpan="8" style={styles.noData}>
                 No se encontraron productos.
               </td>
             </tr>
@@ -236,7 +396,7 @@ const styles = {
     padding: "2rem",
     borderRadius: "16px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-    maxWidth: "950px",
+    maxWidth: "1100px",
     margin: "2rem auto",
     fontFamily: '"Poppins", sans-serif'
   },
@@ -254,4 +414,36 @@ const styles = {
   tr: { borderBottom: "1px solid #d2b48c" },
   td: { padding: "0.7rem", color: "#3e2c1c" },
   noData: { textAlign: "center", padding: "1rem", color: "#6b4f3b", fontStyle: "italic" },
+  labelActions: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    alignItems: "center"
+  },
+  quantityInputContainer: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem"
+  },
+  quantityLabel: {
+    fontSize: "0.8rem",
+    color: "#6b4f3b"
+  },
+  quantityInput: {
+    width: "60px",
+    padding: "0.3rem",
+    border: "1px solid #c2a878",
+    borderRadius: "4px",
+    textAlign: "center"
+  },
+  printButton: {
+    backgroundColor: "#2c5aa0",
+    color: "white",
+    border: "none",
+    padding: "0.5rem 1rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    transition: "all 0.3s ease"
+  }
 };
