@@ -3,12 +3,231 @@ import Barcode from "react-barcode";
 import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
 import ConfirmModal from "./ConfirmModal";
-import ProductQRModal from "./ProductQRModal"; // Modal para mostrar info al escanear QR
+import ProductQRModal from "./ProductQRModal";
 import QRImage from "./QRImage";
 import api, { API_BASE } from "../api/api";
 
-// QR sin hooks de terceros, usando qrcode -> data URL
+// Modal de Acciones (Imprimir, Editar, Eliminar)
+function ProductActionsModal({ isOpen, onClose, producto, onEdit, onDelete, onPrint }) {
+  if (!isOpen) return null;
 
+  return (
+    <div style={modalStyles.overlay}>
+      <div style={modalStyles.modal}>
+        <h2 style={modalStyles.title}>⚙️ Acciones del Producto</h2>
+        <p style={modalStyles.productName}>{producto?.nombre}</p>
+        
+        <div style={modalStyles.buttonGroupVertical}>
+          <button 
+            style={modalStyles.buttonPrimary}
+            onClick={() => onPrint(producto)}
+          >
+            🖨️ Imprimir Etiquetas
+          </button>
+          <button 
+            style={modalStyles.buttonSecondary}
+            onClick={() => onEdit(producto)}
+          >
+            ✏️ Editar Producto
+          </button>
+          <button 
+            style={modalStyles.buttonDanger}
+            onClick={() => onDelete(producto)}
+          >
+            🗑️ Eliminar Producto
+          </button>
+          <button 
+            style={modalStyles.buttonCancel}
+            onClick={onClose}
+          >
+            ✖ Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal de Confirmación para Eliminar
+function DeleteConfirmModal({ isOpen, onClose, producto, onConfirm }) {
+  const [loading, setLoading] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await onConfirm(producto);
+    setLoading(false);
+  };
+
+  return (
+    <div style={modalStyles.overlay}>
+      <div style={modalStyles.modal}>
+        <h2 style={modalStyles.title}>⚠️ Confirmar Eliminación</h2>
+        <div style={modalStyles.confirmMessage}>
+          ¿Estás seguro de que deseas eliminar el producto <strong>"{producto?.nombre}"</strong>?
+        </div>
+        <div style={modalStyles.warningBox}>
+          ❗ Esta acción no se puede deshacer
+        </div>
+        
+        <div style={modalStyles.buttonGroup}>
+          <button 
+            style={{ ...modalStyles.buttonDanger, opacity: loading ? 0.7 : 1 }}
+            onClick={handleConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Eliminando...' : '🗑️ Sí, Eliminar'}
+          </button>
+          <button 
+            style={modalStyles.buttonCancel}
+            onClick={onClose}
+            disabled={loading}
+          >
+            ✖ Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal de Edición 
+function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) {
+  const [formData, setFormData] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (producto) {
+      setFormData({
+        nombre: producto.nombre || '',
+        descripcion: producto.descripcion || '',
+        precio: producto.precio || '',
+        cantidad: producto.cantidad || '',
+        id_categoria: producto.id_categoria || 1
+      });
+    }
+  }, [producto]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Usar la ruta correcta del backend: PATCH /api/productos/nombre/{nombre}
+      const res = await api.patchActualizarDetalles(producto.nombre, formData);
+      
+      if (res.ok) {
+        const result = await res.json();
+        setMessage("✅ Producto actualizado correctamente");
+        onSuccess();
+        onClose();
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Error al actualizar' }));
+        setError(errorData.error || 'Error al actualizar el producto');
+      }
+    } catch (err) {
+      setError('Error de conexión al actualizar el producto');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  return (
+    <div style={modalStyles.overlay}>
+      <div style={modalStyles.modal}>
+        <h2 style={modalStyles.title}>✏️ Editar Producto</h2>
+        <p style={modalStyles.productName}>{producto?.nombre}</p>
+
+        {error && <div style={modalStyles.errorBox}>{error}</div>}
+
+        <form onSubmit={handleSubmit} style={modalStyles.form}>
+          <label style={modalStyles.label}>
+            Nombre:
+            <input
+              type="text"
+              name="nombre"
+              value={formData.nombre || ''}
+              onChange={handleChange}
+              style={modalStyles.input}
+              required
+            />
+          </label>
+
+          <label style={modalStyles.label}>
+            Descripción:
+            <textarea
+              name="descripcion"
+              value={formData.descripcion || ''}
+              onChange={handleChange}
+              style={{...modalStyles.input, minHeight: '80px'}}
+            />
+          </label>
+
+          <div style={modalStyles.row}>
+            <label style={modalStyles.label}>
+              Precio:
+              <input
+                type="number"
+                name="precio"
+                value={formData.precio || ''}
+                onChange={handleChange}
+                style={modalStyles.input}
+                step="0.01"
+                min="0"
+                required
+              />
+            </label>
+
+            <label style={modalStyles.label}>
+              Cantidad:
+              <input
+                type="number"
+                name="cantidad"
+                value={formData.cantidad || ''}
+                onChange={handleChange}
+                style={modalStyles.input}
+                min="0"
+                required
+              />
+            </label>
+          </div>
+
+          <div style={modalStyles.buttonGroup}>
+            <button 
+              type="submit" 
+              style={{ ...modalStyles.buttonPrimary, opacity: loading ? 0.7 : 1 }}
+              disabled={loading}
+            >
+              {loading ? 'Guardando...' : '💾 Guardar Cambios'}
+            </button>
+            <button 
+              type="button" 
+              style={modalStyles.buttonCancel}
+              onClick={onClose}
+              disabled={loading}
+            >
+              ✖ Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Componente principal actualizado
 export default function InventoryPage({ onClose }) {
   const [showRegister, setShowRegister] = useState(false);
   const [showUpdateStock, setShowUpdateStock] = useState(false);
@@ -18,8 +237,13 @@ export default function InventoryPage({ onClose }) {
   const [message, setMessage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [lastRegisteredProduct, setLastRegisteredProduct] = useState(null);
-  const [qrModalProduct, setQrModalProduct] = useState(null); // Producto a mostrar en modal QR
-  const [labelQuantities, setLabelQuantities] = useState({}); // Estado para cantidades de etiquetas por producto
+  const [qrModalProduct, setQrModalProduct] = useState(null);
+  
+  // Estados para los nuevos modales
+  const [actionsModalProduct, setActionsModalProduct] = useState(null);
+  const [deleteModalProduct, setDeleteModalProduct] = useState(null);
+  const [editModalProduct, setEditModalProduct] = useState(null);
+  const [labelQuantities, setLabelQuantities] = useState({});
 
   // Cargar productos del backend
   const load = async () => {
@@ -30,7 +254,6 @@ export default function InventoryPage({ onClose }) {
         setProductos(body);
         setFilteredProductos(body);
         
-        // Inicializar cantidades de etiquetas
         const initialQuantities = {};
         body.forEach(producto => {
           initialQuantities[producto.id_producto] = 1;
@@ -59,7 +282,7 @@ export default function InventoryPage({ onClose }) {
     setMessage("✅ Producto creado: " + (body?.nombre || ""));
     setLastRegisteredProduct(body);
     setShowRegister(false);
-    setShowConfirm(true); // Abrimos el modal de confirmación
+    setShowConfirm(true);
     load();
   };
 
@@ -75,7 +298,7 @@ export default function InventoryPage({ onClose }) {
   };
 
   const handleCancelConfirm = () => {
-    setShowConfirm(false); // Solo cierra el modal
+    setShowConfirm(false);
   };
 
   const handleUpdateSuccess = () => {
@@ -94,18 +317,60 @@ export default function InventoryPage({ onClose }) {
     setQrModalProduct(null);
   };
 
-  // Manejar cambio en la cantidad de etiquetas
-  const handleQuantityChange = (productId, value) => {
-    const quantity = parseInt(value) || 1;
-    if (quantity > 0) {
-      setLabelQuantities(prev => ({
-        ...prev,
-        [productId]: quantity
-      }));
+  // Funciones para el modal de acciones
+  const openActionsModal = (producto) => {
+    setActionsModalProduct(producto);
+  };
+
+  const closeActionsModal = () => {
+    setActionsModalProduct(null);
+  };
+
+  // Funciones para eliminar
+  const openDeleteModal = (producto) => {
+    setDeleteModalProduct(producto);
+    closeActionsModal();
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalProduct(null);
+  };
+
+  const handleDeleteProduct = async (producto) => {
+    try {
+      // Usar la ruta correcta del backend: DELETE /api/productos/nombre/{nombre}
+      const res = await api.deleteProducto(producto.nombre);
+      
+      if (res.ok) {
+        const result = await res.json();
+        setMessage("✅ Producto eliminado: " + producto.nombre);
+        closeDeleteModal();
+        load();
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Error al eliminar' }));
+        setMessage("❌ " + (errorData.error || 'Error al eliminar el producto'));
+      }
+    } catch (err) {
+      setMessage("❌ Error de conexión al eliminar el producto");
     }
   };
 
-  // Función para imprimir etiquetas
+  // Funciones para editar
+  const openEditModal = (producto) => {
+    setEditModalProduct(producto);
+    closeActionsModal();
+  };
+
+  const closeEditModal = () => {
+    setEditModalProduct(null);
+  };
+
+  const handleEditSuccess = () => {
+    setMessage("✅ Producto actualizado correctamente");
+    load();
+  };
+
+  // Función para imprimir etiquetas (RESTAURADA)
   const handlePrintLabels = (producto) => {
     const quantity = labelQuantities[producto.id_producto] || 1;
     
@@ -166,16 +431,18 @@ export default function InventoryPage({ onClose }) {
         <div class="label">
           <div class="product-name">${producto.nombre}</div>
           ${producto.precio ? `<div class="price">$${producto.precio}</div>` : ''}
+          ${producto.descripcion ? `<div class="description">${producto.descripcion}</div>` : ''}
           ${producto.codigo_barras ? `
             <div class="barcode-container">
-              <svg xmlns="http://www.w3.org/2000/svg">
-                ${generateBarcodeSVG(producto.codigo_barras)}
-              </svg>
+              <div style="background: white; padding: 10px; display: inline-block;">
+                ${producto.codigo_barras}
+              </div>
             </div>
           ` : ''}
           <div class="qr-container">
-            <img src="${generateQRDataURL(JSON.stringify({ id_producto: producto.id_producto, nombre: producto.nombre }))}" 
-                 alt="QR Code" width="100" height="100" />
+            <div style="background: white; padding: 10px; display: inline-block;">
+              QR Code
+            </div>
           </div>
         </div>
       `);
@@ -194,34 +461,20 @@ export default function InventoryPage({ onClose }) {
       </html>
     `);
     printWindow.document.close();
+    
+    setMessage(`🖨️ Imprimiendo ${quantity} etiquetas para ${producto.nombre}`);
+    closeActionsModal();
   };
 
-  // Función auxiliar para generar SVG del código de barras (simplificada)
-  const generateBarcodeSVG = (barcode) => {
-    // Esta es una implementación básica - puedes usar una librería más robusta si es necesario
-    return `<text x="50%" y="50%" text-anchor="middle">${barcode}</text>`;
-  };
-
-  // Función auxiliar para generar QR como data URL
-  const generateQRDataURL = (value) => {
-    // Implementación simplificada - usa tu función QRImage real aquí
-    const qrSize = 100;
-    const canvas = document.createElement('canvas');
-    canvas.width = qrSize;
-    canvas.height = qrSize;
-    const ctx = canvas.getContext('2d');
-    
-    // Fondo blanco
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, qrSize, qrSize);
-    
-    // Texto simple como placeholder
-    ctx.fillStyle = '#000000';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('QR CODE', qrSize/2, qrSize/2);
-    
-    return canvas.toDataURL();
+  // Manejar cambio en la cantidad de etiquetas
+  const handleQuantityChange = (productId, value) => {
+    const quantity = parseInt(value) || 1;
+    if (quantity > 0 && quantity <= 100) {
+      setLabelQuantities(prev => ({
+        ...prev,
+        [productId]: quantity
+      }));
+    }
   };
 
   return (
@@ -285,7 +538,7 @@ export default function InventoryPage({ onClose }) {
                       alt={p.nombre}
                       onError={(e) => {
                         e.currentTarget.onerror = null;
-                        e.currentTarget.src = ""; // simple fallback: hide image
+                        e.currentTarget.src = "";
                         e.currentTarget.alt = "Imagen no disponible";
                       }}
                       style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#fff" }}
@@ -323,7 +576,7 @@ export default function InventoryPage({ onClose }) {
                 <td style={styles.td}>
                   <div style={styles.labelActions}>
                     <div style={styles.quantityInputContainer}>
-                      <label style={styles.quantityLabel}>Cantidad:</label>
+                      <label style={styles.quantityLabel}>Etiquetas:</label>
                       <input
                         type="number"
                         min="1"
@@ -334,10 +587,10 @@ export default function InventoryPage({ onClose }) {
                       />
                     </div>
                     <button
-                      onClick={() => handlePrintLabels(p)}
-                      style={styles.printButton}
+                      onClick={() => openActionsModal(p)}
+                      style={styles.actionsButton}
                     >
-                      🖨️ Imprimir
+                      ⚙️ Acciones
                     </button>
                   </div>
                 </td>
@@ -353,7 +606,7 @@ export default function InventoryPage({ onClose }) {
         </tbody>
       </table>
 
-      {/* Modales */}
+      {/* Modales existentes */}
       {showRegister && (
         <RegisterProductModal
           onClose={() => setShowRegister(false)}
@@ -373,7 +626,7 @@ export default function InventoryPage({ onClose }) {
           message={`Producto creado: ${lastRegisteredProduct?.nombre || ""}`}
           onConfirm={handleConfirmRegister}
           onCancel={handleConfirmUpdateStock}
-          onClose={handleCancelConfirm} // Cierra el modal sin hacer nada
+          onClose={handleCancelConfirm}
         />
       )}
 
@@ -384,11 +637,180 @@ export default function InventoryPage({ onClose }) {
           onClose={closeQrModal}
         />
       )}
+
+      {/* Nuevos Modales */}
+      <ProductActionsModal
+        isOpen={!!actionsModalProduct}
+        onClose={closeActionsModal}
+        producto={actionsModalProduct}
+        onPrint={handlePrintLabels}
+        onEdit={openEditModal}
+        onDelete={openDeleteModal}
+      />
+
+      <DeleteConfirmModal
+        isOpen={!!deleteModalProduct}
+        onClose={closeDeleteModal}
+        producto={deleteModalProduct}
+        onConfirm={handleDeleteProduct}
+      />
+
+      <EditProductModal
+        isOpen={!!editModalProduct}
+        onClose={closeEditModal}
+        producto={editModalProduct}
+        onSuccess={handleEditSuccess}
+        setMessage={setMessage}
+      />
     </div>
   );
 }
 
-// 🎨 Estilos
+// 🎨 Estilos para los modales (basados en el modal de reportes)
+const modalStyles = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75, 54, 33, 0.6)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    padding: '2rem',
+    width: '500px',
+    maxHeight: '85vh',
+    overflowY: 'auto',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+    fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
+  },
+  title: {
+    textAlign: 'center',
+    fontSize: '1.6rem',
+    marginBottom: '1.2rem',
+    color: '#3e2c1c',
+  },
+  productName: {
+    textAlign: 'center',
+    fontSize: '1.1rem',
+    fontWeight: 'bold',
+    marginBottom: '1.5rem',
+    color: '#5a432c',
+    padding: '0.5rem',
+    backgroundColor: '#e8dfd0',
+    borderRadius: '6px',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.8rem',
+  },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    fontWeight: '500',
+    fontSize: '0.9rem',
+  },
+  input: {
+    padding: '0.6rem',
+    borderRadius: '6px',
+    border: '1px solid #c2a878',
+    backgroundColor: '#fffdf8',
+    color: '#3e2c1c',
+    outline: 'none',
+    transition: 'all 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  row: {
+    display: 'flex',
+    gap: '1rem',
+  },
+  buttonGroup: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginTop: '1rem',
+  },
+  buttonGroupVertical: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.8rem',
+    marginTop: '1rem',
+  },
+  buttonPrimary: {
+    backgroundColor: '#a67c52',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  buttonSecondary: {
+    backgroundColor: '#c2a878',
+    color: '#3e2c1c',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  buttonDanger: {
+    backgroundColor: '#b26a55',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  buttonCancel: {
+    backgroundColor: '#8b6b4a',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  errorBox: {
+    backgroundColor: '#fce8e6',
+    color: '#7a3e2f',
+    borderLeft: '5px solid #b26a55',
+    padding: '0.7rem',
+    borderRadius: '6px',
+    marginBottom: '1rem',
+    fontSize: '0.9rem',
+  },
+  warningBox: {
+    backgroundColor: '#fff3cd',
+    color: '#856404',
+    borderLeft: '5px solid #ffc107',
+    padding: '0.7rem',
+    borderRadius: '6px',
+    marginBottom: '1rem',
+    fontSize: '0.9rem',
+  },
+  confirmMessage: {
+    textAlign: 'center',
+    marginBottom: '1rem',
+    fontSize: '1rem',
+    lineHeight: '1.4',
+  }
+};
+
+// 🎨 Estilos existentes
 const styles = {
   container: {
     backgroundColor: "#f5f1e3",
@@ -436,8 +858,8 @@ const styles = {
     borderRadius: "4px",
     textAlign: "center"
   },
-  printButton: {
-    backgroundColor: "#2c5aa0",
+  actionsButton: {
+    backgroundColor: "#5a6b8c",
     color: "white",
     border: "none",
     padding: "0.5rem 1rem",
