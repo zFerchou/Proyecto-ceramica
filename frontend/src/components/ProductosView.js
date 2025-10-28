@@ -15,9 +15,9 @@ const COLORS = {
 
 // Mapeo de categorías
 const CATEGORIAS = {
-  1: "Joyería",
-  2: "Macetas", 
-  3: "Productos de cocina"
+  1: { nombre: "Joyería", icon: "💎", color: "#B0836A" },
+  2: { nombre: "Macetas", icon: "🏺", color: "#8A9B68" }, 
+  3: { nombre: "Productos de cocina", icon: "🍽️", color: "#C44536" }
 };
 
 export default function ProductosView({ filter = null }) {
@@ -87,6 +87,40 @@ export default function ProductosView({ filter = null }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // --- Agrupar productos por categoría ---
+  const productosPorCategoria = useMemo(() => {
+    const categorias = {};
+    
+    // Inicializar todas las categorías
+    Object.keys(CATEGORIAS).forEach(id => {
+      categorias[id] = {
+        ...CATEGORIAS[id],
+        productos: []
+      };
+    });
+
+    // Agregar productos a sus categorías
+    productos.forEach(producto => {
+      const categoriaId = producto.id_categoria?.toString();
+      if (categoriaId && categorias[categoriaId]) {
+        categorias[categoriaId].productos.push(producto);
+      } else {
+        // Si no tiene categoría o la categoría no existe, poner en "Otros"
+        if (!categorias.otros) {
+          categorias.otros = {
+            nombre: "Otros",
+            icon: "📦",
+            color: COLORS.grisPiedra,
+            productos: []
+          };
+        }
+        categorias.otros.productos.push(producto);
+      }
+    });
+
+    return categorias;
+  }, [productos]);
+
   // --- Filtrar productos por categoría y búsqueda ---
   const filtered = useMemo(() => {
     let filteredProductos = productos;
@@ -109,27 +143,124 @@ export default function ProductosView({ filter = null }) {
     return filteredProductos;
   }, [productos, query, activeFilter]);
 
+  // --- Productos filtrados por categoría para búsqueda ---
+  const filteredPorCategoria = useMemo(() => {
+    if (!query.trim()) return productosPorCategoria;
+
+    const categoriasFiltradas = {};
+    Object.keys(productosPorCategoria).forEach(categoriaId => {
+      const categoria = productosPorCategoria[categoriaId];
+      const productosFiltrados = categoria.productos.filter(p =>
+        (p.nombre || "").toLowerCase().includes(query.toLowerCase()) ||
+        (p.descripcion || "").toLowerCase().includes(query.toLowerCase())
+      );
+
+      if (productosFiltrados.length > 0) {
+        categoriasFiltradas[categoriaId] = {
+          ...categoria,
+          productos: productosFiltrados
+        };
+      }
+    });
+
+    return categoriasFiltradas;
+  }, [productosPorCategoria, query]);
+
   // Obtener el título de la categoría activa
   const getFilterTitle = () => {
     if (!activeFilter || activeFilter === 0) {
       return "🌟 Todos los Productos";
     }
-    return `${getCategoriaIcon(activeFilter)} ${CATEGORIAS[activeFilter]}`;
-  };
-
-  // Obtener icono de categoría
-  const getCategoriaIcon = (idCategoria) => {
-    const icons = {
-      1: "💎",
-      2: "🏺", 
-      3: "🍽️"
-    };
-    return icons[idCategoria] || "📦";
+    const categoria = CATEGORIAS[activeFilter];
+    return `${categoria.icon} ${categoria.nombre}`;
   };
 
   // Función para limpiar filtro
   const clearFilter = () => {
     setActiveFilter(null);
+  };
+
+  // Renderizar sección de categoría
+  const renderCategoriaSection = (categoriaId, categoria) => {
+    if (categoria.productos.length === 0) return null;
+
+    return (
+      <section key={categoriaId} style={styles.categoriaSection}>
+        <div style={styles.categoriaHeader}>
+          <div style={{
+            ...styles.categoriaIcon,
+            backgroundColor: categoria.color
+          }}>
+            {categoria.icon}
+          </div>
+          <div>
+            <h2 style={styles.categoriaTitle}>{categoria.nombre}</h2>
+            <p style={styles.categoriaCount}>
+              {categoria.productos.length} producto{categoria.productos.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+        
+        <div style={styles.grid}>
+          {categoria.productos.map((p, idx) => (
+            <article
+              key={(p.id_producto ?? idx) + "_" + p.nombre}
+              style={{
+                ...styles.card,
+                ...(hoverIdx === `${categoriaId}-${idx}` ? styles.cardHover : {}),
+              }}
+              onClick={() => setSelected(p)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSelected(p);
+              }}
+              role="button"
+              tabIndex={0}
+              onMouseEnter={() => setHoverIdx(`${categoriaId}-${idx}`)}
+              onMouseLeave={() => setHoverIdx(null)}
+            >
+              <div style={styles.cardImage}>
+                <div style={styles.productImagePlaceholder}>
+                  {p.imagen_url ? (
+                    <img
+                      src={`${API_BASE}${p.imagen_url}`}
+                      alt={p.nombre}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "";
+                        e.currentTarget.alt = "Imagen no disponible";
+                      }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    "Imagen"
+                  )}
+                </div>
+              </div>
+              <div style={styles.cardBody}>
+                <h3 style={styles.cardTitle}>{p.nombre}</h3>
+                <p style={styles.cardDesc}>
+                  {p.descripcion || "Sin descripción"}
+                </p>
+                <div style={styles.cardPrice}>
+                  ${Number(p.precio).toFixed(2)}
+                </div>
+                <div style={{
+                  ...styles.categoriaBadge,
+                  backgroundColor: `${categoria.color}20`,
+                  color: categoria.color
+                }}>
+                  {categoria.icon} {categoria.nombre}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
   };
 
   return (
@@ -149,7 +280,7 @@ export default function ProductosView({ filter = null }) {
           <h1 style={styles.title}>{getFilterTitle()}</h1>
           <p style={styles.subtitle}>
             {activeFilter && activeFilter !== 0 
-              ? `Categoría: ${CATEGORIAS[activeFilter]}` 
+              ? `Categoría: ${CATEGORIAS[activeFilter].nombre}` 
               : 'Piezas únicas hechas a mano'
             }
           </p>
@@ -193,83 +324,64 @@ export default function ProductosView({ filter = null }) {
         {/* --- Mensajes de estado --- */}
         {error && <div style={styles.errorBox}>{String(error)}</div>}
         {loading && <div style={styles.loading}>Cargando productos...</div>}
-        {!loading && filtered.length === 0 && (
-          <div style={styles.empty}>
-            {activeFilter && activeFilter !== 0
-              ? `No hay productos en la categoría "${CATEGORIAS[activeFilter]}".` 
-              : "No se encontraron productos."
-            }
-            <br />
-            <button 
-              onClick={() => {
-                clearFilter();
-                setQuery('');
-              }}
-              style={styles.resetFiltersBtn}
-            >
-              Ver todos los productos
-            </button>
-          </div>
+        
+        {/* --- Vista cuando hay búsqueda activa --- */}
+        {!loading && query.trim() && (
+          <>
+            <div style={styles.searchResultsHeader}>
+              <h2 style={styles.searchTitle}>
+                🔍 Resultados de búsqueda para "{query}"
+              </h2>
+              <p style={styles.searchSubtitle}>
+                {Object.values(filteredPorCategoria).reduce((total, cat) => total + cat.productos.length, 0)} 
+                producto(s) encontrado(s)
+              </p>
+            </div>
+            
+            {Object.values(filteredPorCategoria).length === 0 ? (
+              <div style={styles.empty}>
+                No se encontraron productos para "{query}"
+                <br />
+                <button 
+                  onClick={() => setQuery('')}
+                  style={styles.resetFiltersBtn}
+                >
+                  Limpiar búsqueda
+                </button>
+              </div>
+            ) : (
+              Object.keys(filteredPorCategoria).map(categoriaId =>
+                renderCategoriaSection(categoriaId, filteredPorCategoria[categoriaId])
+              )
+            )}
+          </>
         )}
 
-        {/* --- Grid de productos --- */}
-        <section style={styles.grid}>
-          {filtered.map((p, idx) => (
-            <article
-              key={(p.id_producto ?? idx) + "_" + p.nombre}
-              style={{
-                ...styles.card,
-                ...(hoverIdx === idx ? styles.cardHover : {}),
-              }}
-              onClick={() => setSelected(p)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") setSelected(p);
-              }}
-              role="button"
-              tabIndex={0}
-              onMouseEnter={() => setHoverIdx(idx)}
-              onMouseLeave={() => setHoverIdx(null)}
-            >
-              <div style={styles.cardImage}>
-                <div style={styles.productImagePlaceholder}>
-                  {p.imagen_url ? (
-                    <img
-                      src={`${API_BASE}${p.imagen_url}`}
-                      alt={p.nombre}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = "";
-                        e.currentTarget.alt = "Imagen no disponible";
-                      }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    "Imagen"
-                  )}
-                </div>
+        {/* --- Vista normal por categorías (sin búsqueda) --- */}
+        {!loading && !query.trim() && (
+          <>
+            {activeFilter && activeFilter !== 0 ? (
+              // Vista de una sola categoría cuando hay filtro activo
+              Object.keys(productosPorCategoria)
+                .filter(catId => catId === activeFilter.toString())
+                .map(categoriaId => 
+                  renderCategoriaSection(categoriaId, productosPorCategoria[categoriaId])
+                )
+            ) : (
+              // Vista de todas las categorías
+              Object.keys(productosPorCategoria).map(categoriaId =>
+                renderCategoriaSection(categoriaId, productosPorCategoria[categoriaId])
+              )
+            )}
+            
+            {/* Mensaje cuando no hay productos */}
+            {Object.values(productosPorCategoria).every(cat => cat.productos.length === 0) && (
+              <div style={styles.empty}>
+                No se encontraron productos.
               </div>
-              <div style={styles.cardBody}>
-                <h3 style={styles.cardTitle}>{p.nombre}</h3>
-                <p style={styles.cardDesc}>
-                  {p.descripcion || "Sin descripción"}
-                </p>
-                <div style={styles.cardPrice}>
-                  ${Number(p.precio).toFixed(2)}
-                </div>
-                {/* Mostrar categoría del producto */}
-                {p.id_categoria && (
-                  <div style={styles.categoriaBadge}>
-                    {getCategoriaIcon(p.id_categoria)} {CATEGORIAS[p.id_categoria]}
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
-        </section>
+            )}
+          </>
+        )}
       </div>
 
       {/* --- Panel de detalle --- */}
@@ -313,6 +425,18 @@ export default function ProductosView({ filter = null }) {
                 {selected.descripcion || "Pieza de cerámica artesanal."}
               </p>
 
+              {/* --- Mostrar categoría --- */}
+              {selected.id_categoria && (
+                <div style={{
+                  ...styles.categoriaBadgeLarge,
+                  backgroundColor: `${CATEGORIAS[selected.id_categoria]?.color || COLORS.terracota}20`,
+                  color: CATEGORIAS[selected.id_categoria]?.color || COLORS.terracota
+                }}>
+                  {CATEGORIAS[selected.id_categoria]?.icon || '📦'} 
+                  {CATEGORIAS[selected.id_categoria]?.nombre || 'Categoría desconocida'}
+                </div>
+              )}
+
               {/* --- Mostrar QR dinámico --- */}
               <div style={{ marginTop: "1rem", textAlign: "center" }}>
                 <strong>Código QR:</strong>
@@ -328,12 +452,6 @@ export default function ProductosView({ filter = null }) {
                 <span style={styles.metaItem}>
                   <strong>Disponibles:</strong> {selected.cantidad}
                 </span>
-                {selected.id_categoria != null && (
-                  <span style={styles.metaItem}>
-                    <strong>Categoría:</strong>{" "}
-                    {CATEGORIAS[selected.id_categoria] || "Desconocida"}
-                  </span>
-                )}
               </div>
 
               {/* --- Acciones --- */}
@@ -344,7 +462,7 @@ export default function ProductosView({ filter = null }) {
                     window.open(
                       `${
                         process.env.REACT_APP_API_BASE
-                      }${selected.qr_image_path.replace(/^\/public/, "")}`,
+                      }${selected.qr_image_path?.replace(/^\/public/, "") || ''}`,
                       "_blank"
                     )
                   }
@@ -451,6 +569,55 @@ const styles = {
     fontWeight: "500",
     whiteSpace: "nowrap",
   },
+  // Secciones de categoría
+  categoriaSection: {
+    marginBottom: "3rem",
+  },
+  categoriaHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem",
+    marginBottom: "1.5rem",
+    paddingBottom: "0.5rem",
+    borderBottom: `2px solid ${COLORS.arena}`,
+  },
+  categoriaIcon: {
+    width: "60px",
+    height: "60px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "1.5rem",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+  },
+  categoriaTitle: {
+    color: COLORS.carbon,
+    fontSize: "1.5rem",
+    margin: 0,
+  },
+  categoriaCount: {
+    color: COLORS.grisPiedra,
+    margin: 0,
+    fontSize: "0.9rem",
+  },
+  // Resultados de búsqueda
+  searchResultsHeader: {
+    textAlign: "center",
+    marginBottom: "2rem",
+    padding: "1rem",
+    background: "rgba(176, 131, 106, 0.1)",
+    borderRadius: "12px",
+  },
+  searchTitle: {
+    color: COLORS.terracota,
+    fontSize: "1.3rem",
+    margin: "0 0 0.5rem 0",
+  },
+  searchSubtitle: {
+    color: COLORS.grisPiedra,
+    margin: 0,
+  },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
@@ -487,13 +654,19 @@ const styles = {
   cardDesc: { margin: "0.35rem 0 0.5rem", fontSize: "0.9rem", opacity: 0.8, minHeight: "40px" },
   cardPrice: { color: COLORS.terracota, fontWeight: 700, fontSize: "1.1rem" },
   categoriaBadge: {
-    background: "rgba(176, 131, 106, 0.15)",
-    color: COLORS.terracota,
     padding: "0.3rem 0.6rem",
     borderRadius: "8px",
     fontSize: "0.75rem",
     fontWeight: "600",
     marginTop: "0.5rem",
+    display: "inline-block",
+  },
+  categoriaBadgeLarge: {
+    padding: "0.5rem 1rem",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    margin: "0.5rem 0",
     display: "inline-block",
   },
   overlay: {
