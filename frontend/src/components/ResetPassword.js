@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import loginApi from '../api/loginApi';
+import loginApi from '../api/loginapi';
 
 const ResetPassword = ({ onClose }) => {
   const [newPassword, setNewPassword] = useState('');

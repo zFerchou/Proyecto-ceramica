@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from 'react-router-dom';
+import PageBackground from "./PageBackground";
 import InventoryPage from "../components/InventoryPage";
 import SalesPage from "../components/SalesPage";
 import ProductosView from "../components/ProductosView";
@@ -152,6 +154,7 @@ const Home = () => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [activePage, setActivePage] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
@@ -173,7 +176,8 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="dashboard-container">
+    <PageBackground>
+      <div className="dashboard-container">
       <header className="navbar">
         <div className="navbar-left">
           <button
@@ -216,7 +220,7 @@ export default function Dashboard() {
                 </button>
               </li>
 
-              {user ? (
+              {authService.isAuthenticated() ? (
                 <li>
                   <button
                     onClick={() => {
@@ -224,6 +228,7 @@ export default function Dashboard() {
                       setUser(null);
                       setActivePage("home");
                       setMenuOpen(false);
+                      navigate('/login');
                     }}
                     style={{ backgroundColor: "#c0392b", color: "white", borderRadius: "8px", padding: "8px 12px", width: "100%" }}
                   >
@@ -232,12 +237,7 @@ export default function Dashboard() {
                 </li>
               ) : (
                 <li>
-                  <button
-                    onClick={() => {
-                      setShowLogin(true);
-                      setMenuOpen(false);
-                    }}
-                  >
+                  <button onClick={() => { setMenuOpen(false); navigate('/login'); }}>
                     Iniciar Sesión
                   </button>
                 </li>
@@ -266,7 +266,7 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-      </main>
+  </main>
 
       {/* Estilos completos */}
       <style>{`
@@ -634,6 +634,7 @@ export default function Dashboard() {
           .footer-content { grid-template-columns: 1fr; }
         }
       `}</style>
-    </div>
+      </div>
+    </PageBackground>
   );
 }

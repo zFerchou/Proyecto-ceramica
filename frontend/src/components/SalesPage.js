@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import PageBackground from './PageBackground';
 import NewSaleModal from '../components/NewSaleModal';
 import ReportModal from '../components/ReportModal';
 import { getVentas, deleteVenta } from '../api/api';
@@ -104,6 +105,7 @@ export default function SalesPage() {
   }, [buscar]);
 
   return (
+    <PageBackground>
     <div style={styles.container}>
       <h2 style={styles.title}>🧾 Ventas</h2>
 
@@ -203,6 +205,7 @@ export default function SalesPage() {
         />
       )}
     </div>
+    </PageBackground>
   );
 }
 

@@ -8,6 +8,8 @@ import Login from '../components/Login';
 import ForgotUsername from '../components/ForgotUsername';
 import ForgotPassword from '../components/ForgotPassword';
 import ResetPassword from '../components/ResetPassword';
+import ProtectedRoute from './ProtectedRoute';
+import PublicOnlyRoute from './PublicOnlyRoute';
 
 /**
  * Archivo de rutas principal de la aplicación
@@ -17,24 +19,52 @@ export default function AppRoutes() {
   return (
     <Router>
       <Routes>
-        {/* Ruta principal del dashboard */}
-        <Route path="/" element={<Dashboard />} />
+        {/* Ruta principal del dashboard (protegida) */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Rutas específicas */}
-        <Route path="/inventario" element={<InventoryPage />} />
-        <Route path="/ventas" element={<SalesPage />} />
+        {/* Rutas específicas (protegidas) */}
+        <Route
+          path="/inventario"
+          element={
+            <ProtectedRoute>
+              <InventoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ventas"
+          element={
+            <ProtectedRoute>
+              <SalesPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Catálogo público para clientes */}
         <Route path="/catalogo" element={<ProductosView />} />
 
         {/* Rutas de autenticación */}
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <Login />
+            </PublicOnlyRoute>
+          }
+        />
         <Route path="/forgot-username" element={<ForgotUsername />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-        {/* Cualquier otra ruta redirige al dashboard */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+  {/* Cualquier otra ruta redirige al dashboard (que está protegido) */}
+  <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

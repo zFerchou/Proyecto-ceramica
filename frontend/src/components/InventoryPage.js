@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import PageBackground from "./PageBackground";
 import Barcode from "react-barcode";
 import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
@@ -561,6 +562,7 @@ export default function InventoryPage({ onClose }) {
   };
 
   return (
+    <PageBackground>
     <div style={styles.container}>
       <h1 style={styles.title}>📦 Inventario</h1>
 
@@ -746,6 +748,7 @@ export default function InventoryPage({ onClose }) {
         setMessage={setMessage}
       />
     </div>
+    </PageBackground>
   );
 }
 

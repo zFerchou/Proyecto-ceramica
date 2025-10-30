@@ -1,7 +1,8 @@
 // src/components/AuthModal.js
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import loginapi from '../api/loginApi';
+import loginapi from '../api/loginapi';
+import authService from '../services/authService';
 import Verificar2FA from './Verificar2FA';
 
 export default function AuthModal({ onLoginSuccess }) {
@@ -47,11 +48,11 @@ export default function AuthModal({ onLoginSuccess }) {
       if (data.require2FA) {
         setPending2FA({ userId: data.userId || data.id, email: data.email });
       } else if (data.token && data.user) {
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('authUser', JSON.stringify(data.user));
+        // Persistencia centralizada
+        authService.setAuthData(data.token, data.user);
         if (onLoginSuccess) onLoginSuccess();
         setIsVisible(false);
-        navigate('/dashboard');
+        navigate('/');
       } else {
         setLoginError('Respuesta inesperada del servidor');
       }
@@ -102,11 +103,10 @@ export default function AuthModal({ onLoginSuccess }) {
         email={pending2FA.email}
         onSuccess={(data) => {
           if (data.token && data.user) {
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('authUser', JSON.stringify(data.user));
+            authService.setAuthData(data.token, data.user);
             if (onLoginSuccess) onLoginSuccess();
             setIsVisible(false);
-            navigate('/dashboard');
+            navigate('/');
           }
         }}
         onError={(msg) => setLoginError(msg)}

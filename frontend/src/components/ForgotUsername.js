@@ -1,7 +1,7 @@
 // ForgotUsername.js
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import authService from '../api/loginApi';
+import authService from '../api/loginapi';
 
 export default function ForgotUsername({ onClose }) {
   const [email, setEmail] = useState('');

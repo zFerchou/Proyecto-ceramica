@@ -13,6 +13,33 @@ export function clearAuthData() {
   try { localStorage.removeItem(AUTH_KEY); } catch {}
 }
 
+export function logout() {
+  try {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    localStorage.removeItem(AUTH_KEY);
+  } catch {}
+}
+
+export function isAuthenticated() {
+  try {
+    const d = getAuthData();
+    const token = d && d.token;
+    // Si quedaron restos antiguos en localStorage ('authToken') pero no hay AUTH_KEY, limpiamos y forzamos no autenticado
+    const legacy = localStorage.getItem('authToken');
+    if (!token && legacy) {
+      logout();
+      return false;
+    }
+    if (!token) return false;
+    const s = String(token).trim();
+    if (s === 'null' || s === 'undefined' || s.length === 0) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function canLoginOffline() {
   const d = getAuthData();
   return !!(d && d.token && d.user);
@@ -25,5 +52,5 @@ export function enterOfflineMode() {
 // ---------------------------------------------
 // Export default
 // ---------------------------------------------
-const authService = { setAuthData, getAuthData, clearAuthData, canLoginOffline, enterOfflineMode };
+const authService = { setAuthData, getAuthData, clearAuthData, canLoginOffline, enterOfflineMode, logout, isAuthenticated };
 export default authService;
