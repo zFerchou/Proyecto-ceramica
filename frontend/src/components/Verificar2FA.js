@@ -6,6 +6,18 @@ export default function Verificar2FA({ userId, email, onSuccess, onError, onClos
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  // Normaliza errores para evitar mostrar JSON crudo como {"error":"..."}
+  const normalizeError = (error) => {
+    const raw = typeof error === 'string' ? error : (error?.message || 'Ocurrió un error');
+    try {
+      if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+        const obj = JSON.parse(raw);
+        return obj.error || obj.message || raw;
+      }
+    } catch {}
+    return raw;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -14,7 +26,7 @@ export default function Verificar2FA({ userId, email, onSuccess, onError, onClos
       const data = await loginapi.verify2FA({ userId, codigo });
       onSuccess && onSuccess(data);
     } catch (error) {
-      const msg = error.message || 'Error verificando código';
+      const msg = normalizeError(error) || 'Error verificando código';
       setErr(msg);
       onError && onError(msg);
     } finally {
@@ -73,7 +85,7 @@ export default function Verificar2FA({ userId, email, onSuccess, onError, onClos
               onChange={e => setCodigo(e.target.value)}
               disabled={loading}
               required
-              minLength={4}
+              minLength={6}
               style={styles.input}
               placeholder="Ingresa el código"
             />
