@@ -28,6 +28,19 @@ export default function AuthModal({ onLoginSuccess }) {
   const [errorFP, setErrorFP] = useState('');
   const [loadingFP, setLoadingFP] = useState(false);
 
+  // Normaliza errores para mostrar mensajes legibles (evita mostrar JSON crudo)
+  const normalizeError = (err) => {
+    const raw = typeof err === 'string' ? err : (err?.message || 'Ocurrió un error');
+    try {
+      // Si viene como JSON (por ejemplo: {"error":"..."})
+      if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+        const obj = JSON.parse(raw);
+        return obj.error || obj.message || raw;
+      }
+    } catch {}
+    return raw;
+  };
+
   // --- Handlers ---
   const handleLoginChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -57,7 +70,7 @@ export default function AuthModal({ onLoginSuccess }) {
         setLoginError('Respuesta inesperada del servidor');
       }
     } catch (err) {
-      setLoginError(err.message || 'Error en el login');
+      setLoginError(normalizeError(err) || 'Error en el login');
     } finally {
       setLoginLoading(false);
     }
@@ -72,7 +85,7 @@ export default function AuthModal({ onLoginSuccess }) {
       const res = await loginapi.forgotUsername(emailFU);
       setMessageFU(res.message || 'Revisa tu correo.');
     } catch (err) {
-      setErrorFU(err.message || 'Error al recuperar usuario');
+      setErrorFU(normalizeError(err) || 'Error al recuperar usuario');
     } finally {
       setLoadingFU(false);
     }
@@ -87,7 +100,7 @@ export default function AuthModal({ onLoginSuccess }) {
       const res = await loginapi.forgotPassword(emailFP);
       setMessageFP(res.message || 'Si el correo existe, se envió el enlace de recuperación');
     } catch (err) {
-      setErrorFP(err.message || 'Error al enviar correo');
+      setErrorFP(normalizeError(err) || 'Error al enviar correo');
     } finally {
       setLoadingFP(false);
     }
@@ -109,7 +122,7 @@ export default function AuthModal({ onLoginSuccess }) {
             navigate('/');
           }
         }}
-        onError={(msg) => setLoginError(msg)}
+        onError={(msg) => setLoginError(normalizeError(msg))}
         onCancel={() => setPending2FA(null)}
       />
     );
