@@ -146,20 +146,63 @@ export async function patchAnularProductos(id_venta, payload) {
   });
 }
 
+// --- Categorías API helpers ---
+export async function getCategorias() {
+  const res = await fetch(`${API_BASE}/api/categorias`);
+  return res;
+}
+
+export async function postCategoria(data) {
+  const res = await fetch(`${API_BASE}/api/categorias`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res;
+}
+
+export async function putCategoria(id, data) {
+  const res = await fetch(`${API_BASE}/api/categorias/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res;
+}
+
+export async function deleteCategoria(id) {
+  const res = await fetch(`${API_BASE}/api/categorias/${id}`, { 
+    method: 'DELETE' 
+  });
+  return res;
+}
+
+// --- API Object ---
 const api = {
+  // Productos
   postProducto,
   putActualizarStock,
   postActualizarStockPorCodigo,
   getProductos,
   deleteProducto,
   patchActualizarDetalles,
+  
+  // Ventas
   postVenta,
   getVenta,
   getVentas,
   getReporteVentas,
   deleteVenta,
   patchAnularProductos,
-  getProductosResumenDashboard
+  
+  // Dashboard
+  getProductosResumenDashboard,
+  
+  // Categorías
+  getCategorias,
+  postCategoria,
+  putCategoria,
+  deleteCategoria
 };
 
 export default api;

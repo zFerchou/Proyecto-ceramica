@@ -7,6 +7,7 @@ import ConfirmModal from "./ConfirmModal";
 import ProductQRModal from "./ProductQRModal";
 import QRImage from "./QRImage";
 import api, { API_BASE } from "../api/api";
+import CategoriesModal from "./CategoriesModal";
 
 // Modal de Acciones (Imprimir, Editar, Eliminar)
 function ProductActionsModal({ isOpen, onClose, producto, onEdit, onDelete, onPrint }) {
@@ -98,6 +99,26 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [categorias, setCategorias] = useState([]);
+
+  // Cargar categorías
+  useEffect(() => {
+    const loadCategorias = async () => {
+      try {
+        const res = await api.getCategorias();
+        if (res.ok) {
+          const data = await res.json();
+          setCategorias(data);
+        }
+      } catch (err) {
+        console.error('Error cargando categorías:', err);
+      }
+    };
+
+    if (isOpen) {
+      loadCategorias();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (producto) {
@@ -106,7 +127,7 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
         descripcion: producto.descripcion || '',
         precio: producto.precio || '',
         cantidad: producto.cantidad || '',
-        id_categoria: producto.id_categoria || 1
+        id_categoria: producto.id_categoria || ''
       });
     }
   }, [producto]);
@@ -119,7 +140,6 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
     setError(null);
 
     try {
-      // Usar la ruta correcta del backend: PATCH /api/productos/nombre/{nombre}
       const res = await api.patchActualizarDetalles(producto.nombre, formData);
       
       if (res.ok) {
@@ -205,6 +225,23 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
             </label>
           </div>
 
+          <label style={modalStyles.label}>
+            Categoría:
+            <select
+              name="id_categoria"
+              value={formData.id_categoria || ''}
+              onChange={handleChange}
+              style={modalStyles.input}
+            >
+              <option value="">Sin categoría</option>
+              {categorias.map(cat => (
+                <option key={cat.id_categoria} value={cat.id_categoria}>
+                  {cat.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div style={modalStyles.buttonGroup}>
             <button 
               type="submit" 
@@ -233,6 +270,7 @@ export default function InventoryPage({ onClose }) {
   const [showRegister, setShowRegister] = useState(false);
   const [showUpdateStock, setShowUpdateStock] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [productos, setProductos] = useState([]);
   const [filteredProductos, setFilteredProductos] = useState([]);
   const [message, setMessage] = useState(null);
@@ -339,7 +377,6 @@ export default function InventoryPage({ onClose }) {
 
   const handleDeleteProduct = async (producto) => {
     try {
-      // Usar la ruta correcta del backend: DELETE /api/productos/nombre/{nombre}
       const res = await api.deleteProducto(producto.nombre);
       
       if (res.ok) {
@@ -408,7 +445,7 @@ export default function InventoryPage({ onClose }) {
             page-break-inside: avoid;
             box-sizing: border-box;
             display: flex;
-            flex-direction: column;
+            flexDirection: column;
             justify-content: space-between;
           }
           .product-name {
@@ -590,6 +627,12 @@ export default function InventoryPage({ onClose }) {
           >
             Actualizar stock
           </button>
+          <button
+            style={styles.buttonTertiary}
+            onClick={() => setShowCategoriesModal(true)}
+          >
+            📁 Categorías
+          </button>
           <button style={styles.buttonClose} onClick={onClose}>
             Cerrar
           </button>
@@ -720,6 +763,14 @@ export default function InventoryPage({ onClose }) {
         <ProductQRModal
           producto={qrModalProduct}
           onClose={closeQrModal}
+        />
+      )}
+
+      {/* Modal de Categorías */}
+      {showCategoriesModal && (
+        <CategoriesModal
+          isOpen={showCategoriesModal}
+          onClose={() => setShowCategoriesModal(false)}
         />
       )}
 
@@ -915,6 +966,7 @@ const styles = {
   buttonGroup: { display: "flex", justifyContent: "center", gap: "1rem" },
   buttonPrimary: { backgroundColor: "#a67c52", color: "white", border: "none", padding: "0.7rem 1.2rem", borderRadius: "8px", cursor: "pointer", transition: "all 0.3s ease" },
   buttonSecondary: { backgroundColor: "#c2a878", color: "#3e2c1c", border: "none", padding: "0.7rem 1.2rem", borderRadius: "8px", cursor: "pointer", transition: "all 0.3s ease" },
+  buttonTertiary: { backgroundColor: "#5a6b8c", color: "white", border: "none", padding: "0.7rem 1.2rem", borderRadius: "8px", cursor: "pointer", transition: "all 0.3s ease" },
   buttonClose: { backgroundColor: "#8b6b4a", color: "white", border: "none", padding: "0.7rem 1.2rem", borderRadius: "8px", cursor: "pointer", transition: "all 0.3s ease" },
   message: { backgroundColor: "#e0d6c2", borderLeft: "5px solid #8b6b4a", padding: "0.8rem", borderRadius: "6px", marginBottom: "1rem", textAlign: "center", fontWeight: "500" },
   table: { width: "100%", borderCollapse: "collapse", backgroundColor: "#fff8ef", borderRadius: "8px", overflow: "hidden" },

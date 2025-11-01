@@ -9,6 +9,7 @@ import ventaRoutes from "./routes/ventaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import categoriaRoutes from "./routes/categoriaRoutes.js"; // NUEVA IMPORTACIÓN
 import fs from "fs";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
@@ -41,8 +42,8 @@ app.use(cors({
       callback(new Error("No permitido por CORS"));
     }
   },
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // AÑADIDO PATCH y OPTIONS
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"], // AÑADIDO headers permitidos
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true
 }));
 
@@ -57,6 +58,7 @@ app.use("/api/productos", productoRoutes);
 app.use("/api/ventas", ventaRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/categorias", categoriaRoutes); // NUEVA RUTA
 app.use("/auth", authRoutes);
 
 // --- Middleware: Errores de parseo JSON ---
@@ -72,7 +74,7 @@ app.use((err, req, res, next) => {
 });
 
 // --- Servir React en producción ---
-app.use(express.static(path.join(__dirname, "../frontend/build"))); // Ahora apunta a frontend/build
+app.use(express.static(path.join(__dirname, "../frontend/build")));
 
 // --- Redirigir cualquier ruta no API ni /auth a index.html ---
 app.use((req, res, next) => {

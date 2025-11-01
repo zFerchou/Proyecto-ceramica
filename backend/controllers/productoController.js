@@ -229,7 +229,6 @@ async function generarEAN13Unico(client) {
   throw new Error("No fue posible generar un código EAN-13 único después de varios intentos");
 }
 
-// -------------------- Listar productos --------------------
 export const listarProductos = async (req, res) => {
   try {
     const result = await pool.query(
@@ -240,10 +239,12 @@ export const listarProductos = async (req, res) => {
          p.cantidad, 
          p.precio,
          p.id_categoria,
+         c.nombre as nombre_categoria,  -- NUEVO: nombre de la categoría
          p.imagen_url,
          cb.codigo AS codigo_barras,
          q.codigo_qr AS codigo_qr
        FROM producto p
+       LEFT JOIN categoria c ON p.id_categoria = c.id_categoria  -- NUEVO JOIN
        LEFT JOIN codigo_barras cb ON p.id_producto = cb.id_producto
        LEFT JOIN codigo_qr q ON p.id_producto = q.id_producto
        ORDER BY p.nombre ASC`

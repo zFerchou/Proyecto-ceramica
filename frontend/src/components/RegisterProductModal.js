@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { postProducto } from '../api/api';
+import React, { useState, useEffect } from 'react';
+import api from '../api/api';
+import CategoriesModal from './CategoriesModal';
 
 export default function RegisterProductModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -7,18 +8,31 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     descripcion: '',
     cantidad: 0,
     precio: 0,
-    id_categoria: 1, // valor por defecto
+    id_categoria: '',
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
+  const [categorias, setCategorias] = useState([]);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
-  // Lista de categorías (id y nombre)
-  const categorias = [
-    { id: 1, nombre: 'Joyeria' },
-    { id: 2, nombre: 'Macetas' },
-    { id: 3, nombre: 'Productos de cocina' },
-  ];
+  // Cargar categorías del backend
+  const loadCategorias = async () => {
+    try {
+      const res = await api.getCategorias();
+      if (res.ok) {
+        const data = await res.json();
+        setCategorias(data);
+      }
+    } catch (err) {
+      console.error('Error cargando categorías:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadCategorias();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,6 +43,12 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
           ? Number(value)
           : value,
     }));
+
+    // Actualizar categoría seleccionada cuando cambia el select
+    if (name === 'id_categoria' && value) {
+      const categoria = categorias.find(cat => cat.id_categoria === parseInt(value));
+      setSelectedCategory(categoria || null);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -40,9 +60,9 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
         ...form,
         cantidad: Number.parseInt(form.cantidad, 10),
         precio: Number.parseFloat(form.precio),
-        id_categoria: Number.parseInt(form.id_categoria, 10),
+        id_categoria: form.id_categoria ? Number.parseInt(form.id_categoria, 10) : null,
       };
-      const res = await postProducto(payload, file);
+      const res = await api.postProducto(payload, file);
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         setError(body || { error: 'Error desconocido' });
@@ -54,6 +74,14 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCategorySelect = (categoria) => {
+    setSelectedCategory(categoria);
+    setForm(prev => ({
+      ...prev,
+      id_categoria: categoria.id_categoria
+    }));
   };
 
   return (
@@ -72,13 +100,14 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
               value={form.nombre}
               onChange={handleChange}
               placeholder="Ej. jarron"
+              required
             />
           </label>
 
           <label style={styles.label}>
             Descripción:
-            <input
-              style={styles.input}
+            <textarea
+              style={{...styles.input, minHeight: '80px'}}
               name="descripcion"
               value={form.descripcion}
               onChange={handleChange}
@@ -86,27 +115,65 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
             />
           </label>
 
-          <label style={styles.label}>
-            Cantidad:
-            <input
-              style={styles.input}
-              name="cantidad"
-              type="number"
-              value={form.cantidad}
-              onChange={handleChange}
-            />
-          </label>
+          <div style={styles.row}>
+            <label style={styles.label}>
+              Cantidad:
+              <input
+                style={styles.input}
+                name="cantidad"
+                type="number"
+                value={form.cantidad}
+                onChange={handleChange}
+                min="0"
+                required
+              />
+            </label>
+
+            <label style={styles.label}>
+              Precio:
+              <input
+                style={styles.input}
+                name="precio"
+                type="number"
+                step="0.01"
+                value={form.precio}
+                onChange={handleChange}
+                min="0"
+                required
+              />
+            </label>
+          </div>
 
           <label style={styles.label}>
-            Precio:
-            <input
-              style={styles.input}
-              name="precio"
-              type="number"
-              step="0.01"
-              value={form.precio}
-              onChange={handleChange}
-            />
+            Categoría:
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <select
+                style={styles.input}
+                name="id_categoria"
+                value={form.id_categoria}
+                onChange={handleChange}
+              >
+                <option value="">Seleccionar categoría</option>
+                {categorias.map((cat) => (
+                  <option key={cat.id_categoria} value={cat.id_categoria}>
+                    {cat.nombre}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                style={styles.buttonSecondary}
+                onClick={() => setShowCategoriesModal(true)}
+              >
+                📁 Gestionar
+              </button>
+            </div>
+            {selectedCategory && (
+              <div style={{ fontSize: '0.8rem', color: '#5a432c', marginTop: '0.3rem' }}>
+                Seleccionada: <strong>{selectedCategory.nombre}</strong>
+                {selectedCategory.descripcion && ` - ${selectedCategory.descripcion}`}
+              </div>
+            )}
           </label>
 
           <label style={styles.label}>
@@ -117,22 +184,6 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
               accept="image/*"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
-          </label>
-
-          <label style={styles.label}>
-            Categoría:
-            <select
-              style={styles.input}
-              name="id_categoria"
-              value={form.id_categoria}
-              onChange={handleChange}
-            >
-              {categorias.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nombre}
-                </option>
-              ))}
-            </select>
           </label>
 
           <div style={styles.buttonGroup}>
@@ -152,11 +203,20 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
             </button>
           </div>
         </form>
+
+        {/* Modal de categorías */}
+        {showCategoriesModal && (
+          <CategoriesModal
+            isOpen={showCategoriesModal}
+            onClose={() => setShowCategoriesModal(false)}
+            onCategorySelect={handleCategorySelect}
+            selectedCategory={selectedCategory}
+          />
+        )}
       </div>
     </div>
   );
 }
-
 
 // 🎨 Estilos café-caqui
 const styles = {
@@ -177,7 +237,9 @@ const styles = {
     color: '#4b3621',
     borderRadius: '14px',
     padding: '2rem',
-    width: '400px',
+    width: '450px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
@@ -197,6 +259,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     fontWeight: '500',
+    fontSize: '0.9rem',
   },
   input: {
     marginTop: '0.3rem',
@@ -207,6 +270,11 @@ const styles = {
     color: '#3e2c1c',
     outline: 'none',
     transition: 'all 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  row: {
+    display: 'flex',
+    gap: '1rem',
   },
   buttonGroup: {
     display: 'flex',
@@ -217,19 +285,31 @@ const styles = {
     backgroundColor: '#a67c52',
     color: 'white',
     border: 'none',
-    padding: '0.6rem 1.4rem',
+    padding: '0.8rem 1.4rem',
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'background 0.3s ease',
+    fontSize: '0.9rem',
+  },
+  buttonSecondary: {
+    backgroundColor: '#c2a878',
+    color: '#3e2c1c',
+    border: 'none',
+    padding: '0.6rem 1rem',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'background 0.3s ease',
+    fontSize: '0.8rem',
   },
   buttonCancel: {
     backgroundColor: '#8b6b4a',
     color: 'white',
     border: 'none',
-    padding: '0.6rem 1.4rem',
+    padding: '0.8rem 1.4rem',
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'background 0.3s ease',
+    fontSize: '0.9rem',
   },
   errorBox: {
     backgroundColor: '#fce8e6',
