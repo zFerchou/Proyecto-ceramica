@@ -104,6 +104,18 @@ export default function SalesPage() {
     buscar();
   }, [buscar]);
 
+  // Formatear precio
+  const formatPrice = (price) => {
+    return typeof price === 'number' ? `$${price.toFixed(2)}` : `$${parseFloat(price || 0).toFixed(2)}`;
+  };
+
+  // Calcular subtotal por producto
+  const calculateSubtotal = (producto) => {
+    const precio = typeof producto.precio_unitario === 'number' ? producto.precio_unitario : parseFloat(producto.precio_unitario || 0);
+    const cantidad = producto.cantidad || 0;
+    return precio * cantidad;
+  };
+
   return (
     <PageBackground>
     <div style={styles.container}>
@@ -124,7 +136,7 @@ export default function SalesPage() {
       <div style={styles.searchBox}>
         <input
           style={styles.input}
-          placeholder="Buscar por nombre de venta o código de ticket"
+          placeholder="Buscar por nombre de producto o código de ticket"
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
@@ -136,35 +148,78 @@ export default function SalesPage() {
       {error && <div style={styles.errorBox}>{error}</div>}
 
       {ventas.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', marginTop: '1rem' }}>No hay ventas</div>
+        <div style={{ textAlign: 'center', marginTop: '1rem', color: '#6b4f3b' }}>
+          No hay ventas registradas
+        </div>
       )}
 
       {ventas.map(venta => (
         <div key={venta.codigo_venta} style={styles.card}>
-          <h3 style={styles.cardTitle}>🧮 Venta #{venta.codigo_venta}</h3>
-          <div style={styles.infoLine}>
-            <strong>Fecha:</strong> {venta.fecha}
-          </div>
-          <div style={styles.infoLine}>
-            <strong>Tipo de pago:</strong> {venta.tipo_pago}
-          </div>
-          <div style={styles.infoLine}>
-            <strong>Código de ticket:</strong> {venta.codigo_venta}
+          <div style={styles.cardHeader}>
+            <h3 style={styles.cardTitle}>🧮 Venta #{venta.codigo_venta}</h3>
+            <div style={styles.ventaInfo}>
+              <div><strong>Fecha:</strong> {new Date(venta.fecha).toLocaleString()}</div>
+              <div><strong>Tipo de pago:</strong> {venta.tipo_pago}</div>
+              <div><strong>Total:</strong> {formatPrice(venta.total)}</div>
+            </div>
           </div>
 
-          <div style={{ marginTop: '1rem' }}>
-            <h4 style={{ color: '#4b3621', marginBottom: '0.5rem' }}>🛒 Productos</h4>
-            <ul style={styles.productList}>
-              {venta.productos &&
-                venta.productos.map((p, idx) => (
-                  <li key={idx} style={styles.productItem}>
-                    {p.nombre_producto} — <strong>{p.cantidad}</strong>
-                  </li>
-                ))}
-            </ul>
+          <div style={styles.productsSection}>
+            <h4 style={styles.productsTitle}>🛒 Productos Vendidos</h4>
+            <div style={styles.productsGrid}>
+              {venta.productos && venta.productos.map((producto, idx) => (
+                <div key={idx} style={styles.productCard}>
+                  <div style={styles.productHeader}>
+                    <strong style={styles.productName}>{producto.nombre_producto}</strong>
+                    {producto.imagen_url && (
+                      <img 
+                        src={`http://localhost:3000${producto.imagen_url}`} 
+                        alt={producto.nombre_producto}
+                        style={styles.productImage}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    )}
+                  </div>
+                  
+                  <div style={styles.productDetails}>
+                    <div style={styles.detailRow}>
+                      <span>Cantidad:</span>
+                      <strong>{producto.cantidad}</strong>
+                    </div>
+                    <div style={styles.detailRow}>
+                      <span>Precio unitario:</span>
+                      <strong>{formatPrice(producto.precio_unitario)}</strong>
+                    </div>
+                    <div style={styles.detailRow}>
+                      <span>Subtotal:</span>
+                      <strong style={styles.subtotal}>
+                        {formatPrice(calculateSubtotal(producto))}
+                      </strong>
+                    </div>
+                    {producto.descripcion && (
+                      <div style={styles.description}>
+                        <span>Descripción:</span> {producto.descripcion}
+                      </div>
+                    )}
+                    {producto.codigo_barras && (
+                      <div style={styles.barcode}>
+                        <span>Código barras:</span> {producto.codigo_barras}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div style={{ textAlign: 'right', marginTop: '1rem' }}>
+          <div style={styles.cardFooter}>
+            <div style={styles.totalSection}>
+              <strong style={styles.grandTotal}>
+                Total de la venta: {formatPrice(venta.total)}
+              </strong>
+            </div>
             <button style={styles.buttonDanger} onClick={() => handleUndoClick(venta)}>
               ⚠️ Deshacer venta
             </button>
@@ -217,12 +272,20 @@ const styles = {
     padding: '2rem',
     borderRadius: '16px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-    maxWidth: '900px',
+    maxWidth: '1000px',
     margin: '2rem auto',
     fontFamily: '"Poppins", sans-serif',
   },
-  title: { textAlign: 'center', fontSize: '2rem', color: '#3e2c1c', marginBottom: '1.5rem' },
-  topButtons: { textAlign: 'center', marginBottom: '1rem' },
+  title: { 
+    textAlign: 'center', 
+    fontSize: '2rem', 
+    color: '#3e2c1c', 
+    marginBottom: '1.5rem' 
+  },
+  topButtons: { 
+    textAlign: 'center', 
+    marginBottom: '1rem' 
+  },
   buttonPrimary: {
     backgroundColor: '#a67c52',
     color: 'white',
@@ -232,8 +295,16 @@ const styles = {
     cursor: 'pointer',
     fontSize: '1rem',
     transition: 'all 0.3s ease',
+    '&:hover': {
+      backgroundColor: '#8b6b4a',
+    }
   },
-  searchBox: { display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.2rem' },
+  searchBox: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    gap: '0.5rem', 
+    marginBottom: '1.2rem' 
+  },
   input: {
     flex: 1,
     padding: '0.6rem',
@@ -243,6 +314,7 @@ const styles = {
     outline: 'none',
     color: '#3e2c1c',
     transition: 'all 0.3s ease',
+    maxWidth: '400px'
   },
   buttonSecondary: {
     backgroundColor: '#c2a878',
@@ -275,22 +347,107 @@ const styles = {
   },
   card: {
     backgroundColor: '#fff8ef',
-    padding: '1.2rem',
+    padding: '1.5rem',
     borderRadius: '12px',
     boxShadow: '0 3px 8px rgba(0,0,0,0.1)',
     border: '1px solid #d2b48c',
+    marginBottom: '1.5rem',
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: '1rem',
+    paddingBottom: '1rem',
+    borderBottom: '2px solid #e8dfd0'
   },
-  cardTitle: { fontSize: '1.2rem', color: '#4b3621', marginBottom: '1rem', textAlign: 'center' },
-  infoLine: { marginBottom: '0.4rem' },
-  productList: {
-    listStyleType: 'none',
-    paddingLeft: 0,
+  cardTitle: { 
+    fontSize: '1.4rem', 
+    color: '#4b3621', 
+    margin: 0 
+  },
+  ventaInfo: {
+    textAlign: 'right',
+    fontSize: '0.9rem',
+    color: '#6b4f3b'
+  },
+  productsSection: {
+    marginBottom: '1rem'
+  },
+  productsTitle: { 
+    color: '#4b3621', 
+    marginBottom: '1rem', 
+    fontSize: '1.1rem',
+    borderBottom: '1px solid #d2b48c',
+    paddingBottom: '0.5rem'
+  },
+  productsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+    gap: '1rem'
+  },
+  productCard: {
     backgroundColor: '#f5f1e3',
+    padding: '1rem',
     borderRadius: '8px',
-    padding: '0.8rem',
+    border: '1px solid #d2b48c'
   },
-  productItem: { padding: '0.3rem 0', borderBottom: '1px solid #d2b48c' },
+  productHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '0.8rem'
+  },
+  productName: {
+    fontSize: '1rem',
+    color: '#3e2c1c',
+    flex: 1
+  },
+  productImage: {
+    width: '50px',
+    height: '50px',
+    borderRadius: '6px',
+    objectFit: 'cover',
+    marginLeft: '0.5rem'
+  },
+  productDetails: {
+    fontSize: '0.9rem'
+  },
+  detailRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '0.3rem'
+  },
+  subtotal: {
+    color: '#2c5aa0',
+    fontWeight: 'bold'
+  },
+  description: {
+    fontSize: '0.85rem',
+    color: '#6b4f3b',
+    marginTop: '0.5rem',
+    fontStyle: 'italic'
+  },
+  barcode: {
+    fontSize: '0.8rem',
+    color: '#8b6b4a',
+    marginTop: '0.3rem',
+    fontFamily: 'monospace'
+  },
+  cardFooter: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: '1rem',
+    borderTop: '2px solid #e8dfd0'
+  },
+  totalSection: {
+    fontSize: '1.1rem'
+  },
+  grandTotal: {
+    color: '#2c5aa0',
+    fontSize: '1.2rem'
+  }
 };
 
 const stylesModal = {

@@ -62,6 +62,16 @@ export async function patchActualizarDetalles(nombre, data) {
   return res;
 }
 
+// NUEVO: Actualizar producto por ID (endpoint directo)
+export async function patchActualizarProducto(id_producto, data) {
+  const res = await fetch(`${API_BASE}/api/productos/${id_producto}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res;
+}
+
 // --- Ventas (Sales) API helpers
 export async function postVenta(payload) {
   return fetch(`${API_BASE}/api/ventas`, {
@@ -186,6 +196,7 @@ const api = {
   getProductos,
   deleteProducto,
   patchActualizarDetalles,
+  patchActualizarProducto, // NUEVO: Agregado al objeto API
   
   // Ventas
   postVenta,

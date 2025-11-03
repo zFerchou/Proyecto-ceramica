@@ -141,7 +141,8 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
     setError(null);
 
     try {
-      const res = await api.patchActualizarDetalles(producto.nombre, formData);
+      // CORREGIDO: Usar la nueva función con ID en lugar de nombre
+      const res = await api.patchActualizarProducto(producto.id_producto, formData);
       
       if (res.ok) {
         const result = await res.json();
@@ -1015,4 +1016,4 @@ const styles = {
     fontSize: "0.9rem",
     transition: "all 0.3s ease"
   }
-};pe
+};

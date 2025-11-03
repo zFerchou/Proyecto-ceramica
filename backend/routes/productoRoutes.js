@@ -107,6 +107,56 @@ router.get("/", listarProductos);
 
 /**
  * @swagger
+ * /productos/{id_producto}:
+ *   patch:
+ *     summary: Actualizar producto por ID
+ *     tags: [Productos]
+ *     parameters:
+ *       - in: path
+ *         name: id_producto
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nombre:
+ *                 type: string
+ *               descripcion:
+ *                 type: string
+ *               precio:
+ *                 type: number
+ *               cantidad:
+ *                 type: integer
+ *               id_categoria:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Producto actualizado correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 producto:
+ *                   type: object
+ *       404:
+ *         description: Producto no encontrado
+ *       409:
+ *         description: Ya existe otro producto con este nombre
+ *       500:
+ *         description: Error en el servidor
+ */
+router.patch('/:id_producto', actualizarDetalles);
+
+/**
+ * @swagger
  * /productos/nombre/{nombre}:
  *   delete:
  *     summary: Eliminar un producto por nombre

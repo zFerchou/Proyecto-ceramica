@@ -392,7 +392,7 @@ export const eliminarProducto = async (req, res) => {
 // -------------------- Actualizar detalles --------------------
 export const actualizarDetalles = async (req, res) => {
   const { id_producto } = req.params;
-  const { nombre, descripcion, precio, id_categoria } = req.body;
+  const { nombre, descripcion, precio, cantidad, id_categoria } = req.body; // ← AÑADIR cantidad aquí
 
   if (!id_producto || isNaN(Number(id_producto)))
     return res.status(400).json({ error: "id_producto must be numeric" });
@@ -400,6 +400,7 @@ export const actualizarDetalles = async (req, res) => {
     nombre === undefined &&
     descripcion === undefined &&
     precio === undefined &&
+    cantidad === undefined && // ← AÑADIR cantidad aquí
     id_categoria === undefined
   ) {
     return res.status(400).json({ error: "At least one field must be provided" });
@@ -420,6 +421,10 @@ export const actualizarDetalles = async (req, res) => {
   if (precio !== undefined) {
     updates.push(`precio = $${idx++}`);
     values.push(precio);
+  }
+  if (cantidad !== undefined) { // ← AÑADIR este bloque completo
+    updates.push(`cantidad = $${idx++}`);
+    values.push(cantidad);
   }
   if (id_categoria !== undefined) {
     updates.push(`id_categoria = $${idx++}`);
@@ -466,6 +471,5 @@ export const actualizarDetalles = async (req, res) => {
     client.release();
   }
 };
-
 // -------------------- Exportar helpers para tests --------------------
 export { sanitizeProductName, calcularCheckDigitEAN13, generarDigitosAleatorios };
