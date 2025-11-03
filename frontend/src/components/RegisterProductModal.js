@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
 import CategoriesModal from './CategoriesModal';
+import Marco from "../images/Marco.png";
 
 export default function RegisterProductModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -232,6 +233,8 @@ const styles = {
     alignItems: 'center',
     zIndex: 1000,
   },
+  //Modificar este
+
   modal: {
     backgroundColor: '#f5f1e3',
     color: '#4b3621',
@@ -243,6 +246,10 @@ const styles = {
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%', // ajusta el marco exactamente al contorno
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center'
   },
   title: {
     textAlign: 'center',

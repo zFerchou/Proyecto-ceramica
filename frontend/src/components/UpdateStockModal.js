@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { postActualizarStockPorCodigo, putActualizarStock } from '../api/api';
 
+import Marco from "../images/Marco.png";
+
 export default function UpdateStockModal({ onClose, onSuccess, allowCodigo }) {
   const [form, setForm] = useState({ codigo: '', id_producto: '', cantidad: 1 });
   const [error, setError] = useState(null);
@@ -129,6 +131,10 @@ const styles = {
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%', // ajusta el marco exactamente al tamaño del modal
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center'
   },
   title: {
     textAlign: 'center',

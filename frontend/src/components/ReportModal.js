@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getReporteVentas } from '../api/api';
+import Marco from "../images/Marco.png";
 
 export default function ReportModal({ isOpen, onClose }) {
   const [fechaInicio, setFechaInicio] = useState('');
@@ -171,6 +172,10 @@ const styles = {
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%', // hace que el marco se ajuste exactamente al modal
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center'
   },
   title: {
     textAlign: 'center',

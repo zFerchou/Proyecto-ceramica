@@ -7,6 +7,7 @@ import ProductosView from "../components/ProductosView";
 import Login from "../components/Login";
 import authService from "../services/authService";
 import { getProductosResumenDashboard, API_BASE, getProductos } from "../api/api";
+import logo from "../images/logo.png";
 
 const cliente = {
   nombre: "Santo Barro Cerámica",
@@ -109,6 +110,7 @@ const Home = () => {
   return (
     <div className="home-container">
       <header className="hero-section">
+        <img src={logo} alt={cliente.nombre} className="client-logo" />
         <h1 className="client-name">{cliente.nombre}</h1>
         <p className="description">{cliente.descripcion}</p>
         <p className="promo">{cliente.mensajePromocional}</p>
@@ -194,24 +196,24 @@ export default function Dashboard() {
           <nav className="dropdown-menu">
             <ul>
               <li>
-                <button onClick={() => { setActivePage("home"); setMenuOpen(false); }}>
+                <button type="button" onClick={() => { setActivePage("home"); setMenuOpen(false); }}>
                   Inicio
                 </button>
               </li>
 
               <li>
-                <button onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
+                <button type="button" onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}>
                   Inventario
                 </button>
               </li>
               <li>
-                <button onClick={() => { setActivePage("sales"); setMenuOpen(false); }}>
+                <button type="button" onClick={() => { setActivePage("sales"); setMenuOpen(false); }}>
                   Ventas
                 </button>
               </li>
 
               <li>
-                <button onClick={() => { 
+                <button type="button" onClick={() => { 
                   setProductosFilter(null);
                   setActivePage("productos"); 
                   setMenuOpen(false); 
@@ -222,7 +224,7 @@ export default function Dashboard() {
 
               {authService.isAuthenticated() ? (
                 <li>
-                  <button
+                  <button type="button"
                     onClick={() => {
                       authService.logout();
                       setUser(null);
@@ -237,7 +239,7 @@ export default function Dashboard() {
                 </li>
               ) : (
                 <li>
-                  <button onClick={() => { setMenuOpen(false); navigate('/login'); }}>
+                  <button type="button" onClick={() => { setMenuOpen(false); navigate('/login'); }}>
                     Iniciar Sesión
                   </button>
                 </li>
@@ -275,18 +277,23 @@ export default function Dashboard() {
           flex-direction: column;
           min-height: 100vh;
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: #F5F5DC;
+          background: transparent; /* Dejar ver el fondo de PageBackground */
         }
 
         /* NAVBAR */
         .navbar {
-          background: linear-gradient(135deg, #B0836A 0%, #735f53 100%);
+          background: linear-gradient(135deg, rgba(176,131,106,0.90) 0%, rgba(115,95,83,0.90) 100%);
+          /* Opcional: efecto cristalino sutil sobre el fondo */
+          backdrop-filter: saturate(1.1) blur(2px);
+          -webkit-backdrop-filter: saturate(1.1) blur(2px);
           color: white;
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 15px 25px;
-          position: relative;
+          position: fixed; /* mantener navbar visible al hacer scroll */
+          top: 0; left: 0; right: 0;
+          z-index: 3000; /* por encima del contenido y overlays regulares */
           box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
         .navbar-left { display: flex; align-items: center; }
@@ -312,7 +319,7 @@ export default function Dashboard() {
           border-radius: 12px; 
           box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
           padding: 15px 0; 
-          z-index: 10; 
+          z-index: 2000; /* por encima de overlays/modales */ 
           animation: slideIn 0.3s ease-out; 
           min-width: 180px;
         }
@@ -339,6 +346,7 @@ export default function Dashboard() {
           flex-grow: 1; 
           padding: 0; 
           overflow-y: auto; 
+          padding-top: 90px; /* compensar altura del navbar fijo */
         }
 
         /* HOME CONTAINER */
@@ -376,6 +384,19 @@ export default function Dashboard() {
           text-shadow: 0 2px 4px rgba(0,0,0,0.3);
           position: relative;
           z-index: 1;
+        }
+        .client-logo {
+          width: 120px;
+          height: 120px;
+          object-fit: contain;
+          display: block;
+          margin: 0 auto 10px auto;
+          position: relative;
+          z-index: 1;
+          filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+          background: rgba(255,255,255,0.08);
+          border-radius: 16px;
+          padding: 8px;
         }
         .description { 
           font-size: 1.2rem; 

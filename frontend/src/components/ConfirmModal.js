@@ -1,4 +1,5 @@
 import React from 'react';
+import Marco from "../images/Marco.png";
 
 export default function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, onClose }) {
   if (!isOpen) return null;
@@ -41,6 +42,10 @@ const styles = {
     width: '400px',
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%', // ajusta el marco al tamaño del modal
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center'
   },
   title: { textAlign: 'center', marginBottom: '1rem', fontSize: '1.5rem' },
   message: { textAlign: 'center', marginBottom: '1.5rem' },

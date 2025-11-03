@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
+import Marco from "../images/Marco.png";
 
 function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }) {
   const [categorias, setCategorias] = useState([]);
@@ -209,7 +210,7 @@ const modalStyles = {
     alignItems: 'center',
     zIndex: 1000,
   },
-  modal: {
+modal: {
     backgroundColor: '#f5f1e3',
     color: '#4b3621',
     borderRadius: '14px',
@@ -219,6 +220,10 @@ const modalStyles = {
     overflowY: 'auto',
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%', // ajusta el marco exactamente al tamaño del modal
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center'
   },
   title: {
     textAlign: 'center',
