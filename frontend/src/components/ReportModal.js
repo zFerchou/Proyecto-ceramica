@@ -5,7 +5,7 @@ import Marco from "../images/Marco.png";
 export default function ReportModal({ isOpen, onClose }) {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [ventas, setVentas] = useState([]);
+  const [reporteData, setReporteData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -20,31 +20,99 @@ export default function ReportModal({ isOpen, onClose }) {
 
     setLoading(true);
     setError(null);
+    setReporteData(null);
 
     try {
-  const res = await getReporteVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
-      if (res.error) {
-        setError(res.error);
-      } else {
-        setVentas(res);
+      const res = await getReporteVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+      
+      console.log('✅ Respuesta de la API:', res);
+      
+      // ✅ VERIFICACIÓN COMPLETA DE LA RESPUESTA
+      if (res && res.error) {
+        setError(`Error del servidor: ${res.error}`);
+        return;
       }
+      
+      if (res && typeof res === 'object') {
+        setReporteData(res);
+        
+        // Mostrar mensaje si no hay datos
+        if ((!res.total_vendido || res.total_vendido === 0 || res.total_vendido === '0.00') && 
+            (!res.productos_mas_vendidos || res.productos_mas_vendidos.length === 0)) {
+          setError('No se encontraron ventas en el rango de fechas seleccionado');
+        }
+      } else {
+        console.warn('❌ Respuesta inesperada:', res);
+        setError('Formato de respuesta inesperado del servidor');
+      }
+      
     } catch (err) {
-      setError(err.message);
+      console.error('❌ Error en generarReporte:', err);
+      setError(`Error de conexión: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }
 
-  function descargarCSV() {
-    if (!ventas.length) return;
+  // ✅ FUNCIÓN PARA CONVERTIR TOTAL_VENDIDO A NÚMERO
+  const getTotalVendido = () => {
+    if (!reporteData || !reporteData.total_vendido) return 0;
+    
+    // Si es string, convertir a número
+    if (typeof reporteData.total_vendido === 'string') {
+      return parseFloat(reporteData.total_vendido) || 0;
+    }
+    
+    // Si ya es número, usarlo directamente
+    return Number(reporteData.total_vendido) || 0;
+  };
 
-    let csv = 'Código,Nombre,Fecha,Tipo de Pago,Producto,Cantidad,Precio,Subtotal\n';
-    ventas.forEach(v => {
-      v.productos.forEach(p => {
-        const subtotal = p.cantidad * p.precio;
-        csv += `${v.codigo_venta},${v.nombre || ''},${v.fecha},${v.tipo_pago},${p.nombre_producto},${p.cantidad},${p.precio},${subtotal}\n`;
+  function descargarCSV() {
+    if (!reporteData) {
+      setError('No hay datos para descargar');
+      return;
+    }
+
+    const totalVendido = getTotalVendido();
+    
+    let csv = 'Tipo,Datos,Valor\n';
+    
+    // Total vendido
+    csv += `Total Vendido,,${totalVendido.toFixed(2)}\n`;
+    
+    // Productos más vendidos
+    csv += `Productos Más Vendidos,,\n`;
+    if (reporteData.productos_mas_vendidos && Array.isArray(reporteData.productos_mas_vendidos)) {
+      reporteData.productos_mas_vendidos.forEach((producto, index) => {
+        if (typeof producto === 'string') {
+          csv += `,${producto},\n`;
+        } else if (producto && producto.nombre) {
+          const cantidad = producto.cantidad || 0;
+          csv += `,${producto.nombre},${cantidad}\n`;
+        } else if (producto && producto.producto) {
+          // Por si la estructura es diferente
+          const cantidad = producto.cantidad || producto.total || 0;
+          csv += `,${producto.producto},${cantidad}\n`;
+        }
       });
-    });
+    }
+    
+    // Tipos de pago más usados
+    csv += `Tipos de Pago Más Usados,,\n`;
+    if (reporteData.tipo_pago_mas_usado && Array.isArray(reporteData.tipo_pago_mas_usado)) {
+      reporteData.tipo_pago_mas_usado.forEach((tipoPago, index) => {
+        if (typeof tipoPago === 'string') {
+          csv += `,${tipoPago},\n`;
+        } else if (tipoPago && tipoPago.tipo) {
+          const total = tipoPago.total || 0;
+          csv += `,${tipoPago.tipo},${total}\n`;
+        } else if (tipoPago && tipoPago.metodo_pago) {
+          // Por si la estructura es diferente
+          const total = tipoPago.total || tipoPago.cantidad || 0;
+          csv += `,${tipoPago.metodo_pago},${total}\n`;
+        }
+      });
+    }
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -55,21 +123,67 @@ export default function ReportModal({ isOpen, onClose }) {
     URL.revokeObjectURL(url);
   }
 
-  // Resumen por tipo de pago (en dinero)
-  const resumenPago = ventas.reduce((acc, v) => {
-    const totalVenta = v.productos.reduce((s, p) => s + p.cantidad * p.precio, 0);
-    acc[v.tipo_pago] = (acc[v.tipo_pago] || 0) + totalVenta;
-    return acc;
-  }, {});
+  // ✅ FUNCIÓN PARA FORMATEAR PRODUCTOS MÁS VENDIDOS
+  const getProductosFormateados = () => {
+    if (!reporteData || !reporteData.productos_mas_vendidos || !Array.isArray(reporteData.productos_mas_vendidos)) {
+      return [];
+    }
+    
+    return reporteData.productos_mas_vendidos.map((producto, index) => {
+      if (typeof producto === 'string') {
+        return { nombre: producto, cantidad: 'N/A' };
+      } else if (producto && producto.nombre) {
+        return { 
+          nombre: producto.nombre, 
+          cantidad: producto.cantidad || 'N/A' 
+        };
+      } else if (producto && producto.producto) {
+        // Por si la estructura es diferente
+        return { 
+          nombre: producto.producto, 
+          cantidad: producto.cantidad || producto.total || 'N/A' 
+        };
+      } else {
+        return { nombre: `Producto ${index + 1}`, cantidad: 'N/A' };
+      }
+    });
+  };
 
-  // Total general
-  const totalGeneral = Object.values(resumenPago).reduce((sum, val) => sum + val, 0);
+  // ✅ FUNCIÓN PARA FORMATEAR TIPOS DE PAGO
+  const getTiposPagoFormateados = () => {
+    if (!reporteData || !reporteData.tipo_pago_mas_usado || !Array.isArray(reporteData.tipo_pago_mas_usado)) {
+      return [];
+    }
+    
+    return reporteData.tipo_pago_mas_usado.map((tipoPago, index) => {
+      if (typeof tipoPago === 'string') {
+        return { tipo: tipoPago, total: 'N/A' };
+      } else if (tipoPago && tipoPago.tipo) {
+        return { 
+          tipo: tipoPago.tipo, 
+          total: tipoPago.total || 'N/A' 
+        };
+      } else if (tipoPago && tipoPago.metodo_pago) {
+        // Por si la estructura es diferente
+        return { 
+          tipo: tipoPago.metodo_pago, 
+          total: tipoPago.total || tipoPago.cantidad || 'N/A' 
+        };
+      } else {
+        return { tipo: `Tipo ${index + 1}`, total: 'N/A' };
+      }
+    });
+  };
 
-  // Productos más vendidos
-  const productosVendidos = {};
-  ventas.forEach(v => v.productos.forEach(p => {
-    productosVendidos[p.nombre_producto] = (productosVendidos[p.nombre_producto] || 0) + p.cantidad;
-  }));
+  const totalVendido = getTotalVendido();
+  const productosFormateados = getProductosFormateados();
+  const tiposPagoFormateados = getTiposPagoFormateados();
+
+  const tieneDatos = reporteData && (
+    totalVendido > 0 ||
+    (reporteData.productos_mas_vendidos && reporteData.productos_mas_vendidos.length > 0) ||
+    (reporteData.tipo_pago_mas_usado && reporteData.tipo_pago_mas_usado.length > 0)
+  );
 
   return (
     <div style={styles.overlay}>
@@ -109,45 +223,69 @@ export default function ReportModal({ isOpen, onClose }) {
           </div>
         </form>
 
-        {ventas.length > 0 && (
+        {tieneDatos && (
           <div style={{ marginTop: '1rem' }}>
-            <h3 style={{ textAlign: 'center', marginBottom: '0.5rem' }}>📌 Resumen</h3>
+            <h3 style={{ textAlign: 'center', marginBottom: '0.5rem' }}>📌 Resumen del Reporte</h3>
 
-            <div style={{ marginBottom: '0.8rem' }}>
-              <strong>Total por tipo de pago:</strong>
-              <ul>
-                {Object.entries(resumenPago).map(([tipo, total]) => (
-                  <li key={tipo}>{tipo}: ${total.toFixed(2)}</li>
-                ))}
-              </ul>
+            {/* TOTAL VENDIDO */}
+            <div style={{ marginBottom: '0.8rem', padding: '0.5rem', backgroundColor: '#f0e6d2', borderRadius: '6px' }}>
+              <strong>Total Vendido: </strong> 
+              <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#2d5016' }}>
+                ${totalVendido.toFixed(2)}
+              </span>
             </div>
 
-            <div style={{ marginBottom: '0.8rem' }}>
-              <strong>Total general:</strong> ${totalGeneral.toFixed(2)}
-            </div>
-
-            <div style={{ marginBottom: '0.8rem' }}>
-              <strong>Productos más vendidos:</strong>
-              <ul>
-                {Object.entries(productosVendidos)
-                  .sort((a,b) => b[1] - a[1])
-                  .map(([producto, cantidad]) => (
-                    <li key={producto}>{producto}: {cantidad}</li>
+            {/* PRODUCTOS MÁS VENDIDOS */}
+            {productosFormateados.length > 0 && (
+              <div style={{ marginBottom: '0.8rem' }}>
+                <strong>Productos Más Vendidos:</strong>
+                <ul>
+                  {productosFormateados.map((producto, index) => (
+                    <li key={index}>
+                      {producto.nombre} 
+                      {producto.cantidad !== 'N/A' && `: ${producto.cantidad} unidades`}
+                    </li>
                   ))}
-              </ul>
-            </div>
+                </ul>
+              </div>
+            )}
+
+            {/* TIPOS DE PAGO MÁS USADOS */}
+            {tiposPagoFormateados.length > 0 && (
+              <div style={{ marginBottom: '0.8rem' }}>
+                <strong>Tipos de Pago Más Usados:</strong>
+                <ul>
+                  {tiposPagoFormateados.map((tipoPago, index) => (
+                    <li key={index}>
+                      {tipoPago.tipo} 
+                      {tipoPago.total !== 'N/A' && `: $${tipoPago.total}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <button style={styles.buttonPrimary} onClick={descargarCSV}>
               ⬇️ Descargar CSV
             </button>
           </div>
         )}
+
+        {/* Mensaje cuando no hay datos pero la respuesta fue exitosa */}
+        {reporteData && !tieneDatos && !error && (
+          <div style={{ marginTop: '1rem', textAlign: 'center', color: '#666' }}>
+            No se encontraron ventas en el período seleccionado
+          </div>
+        )}
+
+        {/* Debug info - remover en producción */}
+        
       </div>
     </div>
   );
 }
 
-// 🎨 Estilos café-caqui coherentes con NewSaleModal
+// 🎨 Estilos (mantener los mismos)
 const styles = {
   overlay: {
     position: 'fixed',
@@ -173,7 +311,7 @@ const styles = {
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
     backgroundImage: `url(${Marco})`,
-    backgroundSize: '100% 100%', // hace que el marco se ajuste exactamente al modal
+    backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center'
   },
