@@ -8,6 +8,7 @@ import ProductQRModal from "./ProductQRModal";
 import QRImage from "./QRImage";
 import api, { API_BASE } from "../api/api";
 import CategoriesModal from "./CategoriesModal";
+import Marco from "../images/Marco.png";
 
 // Modal de Acciones (Imprimir, Editar, Eliminar)
 function ProductActionsModal({ isOpen, onClose, producto, onEdit, onDelete, onPrint }) {
@@ -828,6 +829,10 @@ const modalStyles = {
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%', // ajusta el marco exactamente al tamaño del modal
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center'
   },
   title: {
     textAlign: 'center',
@@ -957,7 +962,11 @@ const styles = {
     boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
     maxWidth: "1100px",
     margin: "2rem auto",
-    fontFamily: '"Poppins", sans-serif'
+    fontFamily: '"Poppins", sans-serif',
+    //backgroundImage: `url(${Marco})`,
+    backgroundSize: "100%", // o "100% 100%" si el marco es ajustado
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "center"
   },
   title: { textAlign: "center", color: "#3e2c1c", fontSize: "2rem", marginBottom: "1.5rem" },
   actionsRow: { display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" },

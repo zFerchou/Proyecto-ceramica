@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getProductos, API_BASE } from "../api/api";
-import fondo from "../images/fondo.png";
+import PageBackground from "./PageBackground";
 import QRImage from "./QRImage";
 
 // Paleta de colores coherente con la estética artesanal
@@ -30,7 +30,7 @@ export default function ProductosView({ filter = null }) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false
   );
-  const [bgOffset, setBgOffset] = useState(0);
+  // Fondo ahora proviene de PageBackground (se elimina parallax local)
   const [activeFilter, setActiveFilter] = useState(filter);
 
   // Sincronizar el filtro cuando cambia la prop
@@ -71,21 +71,7 @@ export default function ProductosView({ filter = null }) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // --- Fondo con efecto parallax ---
-  useEffect(() => {
-    let ticking = false;
-    function onScroll() {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setBgOffset(window.scrollY * 0.25);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  // Nota: se retiró el parallax local porque PageBackground maneja el fondo global
 
   // --- Agrupar productos por categoría ---
   const productosPorCategoria = useMemo(() => {
@@ -264,16 +250,8 @@ export default function ProductosView({ filter = null }) {
   };
 
   return (
-    <div style={styles.page}>
-      <div
-        style={{
-          ...styles.bgImagePlaceholder,
-          backgroundImage: `url(${fondo})`,
-          transform: `translateY(${-bgOffset}px)`,
-        }}
-        aria-hidden
-      />
-
+    <PageBackground>
+      <div style={styles.page}>
       <div style={styles.container}>
         {/* --- Encabezado --- */}
         <header style={styles.header}>
@@ -383,7 +361,6 @@ export default function ProductosView({ filter = null }) {
           </>
         )}
       </div>
-
       {/* --- Panel de detalle --- */}
       {selected && (
         <div style={styles.overlay} onClick={() => setSelected(null)}>
@@ -480,26 +457,17 @@ export default function ProductosView({ filter = null }) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PageBackground>
   );
 }
 
 const styles = {
   page: {
     minHeight: "100vh",
-    backgroundColor: COLORS.hueso,
+    backgroundColor: "transparent",
     color: COLORS.grisPiedra,
     position: "relative",
-  },
-  bgImagePlaceholder: {
-    position: "absolute",
-    inset: 0,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "center",
-    backgroundSize: "cover",
-    opacity: 0.22,
-    pointerEvents: "none",
-    zIndex: 0,
   },
   container: {
     position: "relative",
