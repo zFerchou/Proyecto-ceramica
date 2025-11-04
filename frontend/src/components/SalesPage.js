@@ -109,9 +109,58 @@ export default function SalesPage() {
     return typeof price === 'number' ? `$${price.toFixed(2)}` : `$${parseFloat(price || 0).toFixed(2)}`;
   };
 
+  // Obtener precio unitario de diferentes propiedades posibles
+  const getPrecioUnitario = (producto) => {
+    const posiblesPropiedades = [
+      'precio_unitario',
+      'precio',
+      'precio_venta', 
+      'precio_producto',
+      'unit_price',
+      'precio_unidad'
+    ];
+    
+    for (const prop of posiblesPropiedades) {
+      if (producto[prop] !== undefined && producto[prop] !== null) {
+        return typeof producto[prop] === 'number' ? producto[prop] : parseFloat(producto[prop] || 0);
+      }
+    }
+    
+    return 0;
+  };
+
+  // Obtener total de la venta de diferentes propiedades posibles
+  const getTotalVenta = (venta) => {
+    const posiblesPropiedadesTotal = [
+      'total',
+      'total_venta',
+      'total_pagar',
+      'monto_total',
+      'grand_total',
+      'importe_total'
+    ];
+    
+    for (const prop of posiblesPropiedadesTotal) {
+      if (venta[prop] !== undefined && venta[prop] !== null) {
+        return typeof venta[prop] === 'number' ? venta[prop] : parseFloat(venta[prop] || 0);
+      }
+    }
+    
+    // Si no encuentra el total, calcularlo sumando los subtotales de los productos
+    if (venta.productos && Array.isArray(venta.productos)) {
+      return venta.productos.reduce((sum, producto) => {
+        const precio = getPrecioUnitario(producto);
+        const cantidad = producto.cantidad || 0;
+        return sum + (precio * cantidad);
+      }, 0);
+    }
+    
+    return 0;
+  };
+
   // Calcular subtotal por producto
   const calculateSubtotal = (producto) => {
-    const precio = typeof producto.precio_unitario === 'number' ? producto.precio_unitario : parseFloat(producto.precio_unitario || 0);
+    const precio = getPrecioUnitario(producto);
     const cantidad = producto.cantidad || 0;
     return precio * cantidad;
   };
@@ -153,79 +202,107 @@ export default function SalesPage() {
         </div>
       )}
 
-      {ventas.map(venta => (
-        <div key={venta.codigo_venta} style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h3 style={styles.cardTitle}>🧮 Venta #{venta.codigo_venta}</h3>
-            <div style={styles.ventaInfo}>
-              <div><strong>Fecha:</strong> {new Date(venta.fecha).toLocaleString()}</div>
-              <div><strong>Tipo de pago:</strong> {venta.tipo_pago}</div>
-              <div><strong>Total:</strong> {formatPrice(venta.total)}</div>
+      {ventas.map(venta => {
+        const totalVenta = getTotalVenta(venta);
+        
+        return (
+          <div key={venta.codigo_venta} style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>🧮 Venta #{venta.codigo_venta}</h3>
+              <div style={styles.ventaInfo}>
+                <div><strong>Fecha:</strong> {new Date(venta.fecha).toLocaleString()}</div>
+                <div><strong>Tipo de pago:</strong> {venta.tipo_pago}</div>
+                <div><strong>Total:</strong> {formatPrice(totalVenta)}</div>
+              </div>
             </div>
-          </div>
 
-          <div style={styles.productsSection}>
-            <h4 style={styles.productsTitle}>🛒 Productos Vendidos</h4>
-            <div style={styles.productsGrid}>
-              {venta.productos && venta.productos.map((producto, idx) => (
-                <div key={idx} style={styles.productCard}>
-                  <div style={styles.productHeader}>
-                    <strong style={styles.productName}>{producto.nombre_producto}</strong>
-                    {producto.imagen_url && (
-                      <img 
-                        src={`http://localhost:3000${producto.imagen_url}`} 
-                        alt={producto.nombre_producto}
-                        style={styles.productImage}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    )}
-                  </div>
+            <div style={styles.productsSection}>
+              <h4 style={styles.productsTitle}>🛒 Productos Vendidos</h4>
+              <div style={styles.productsGrid}>
+                {venta.productos && venta.productos.map((producto, idx) => {
+                  const precioUnitario = getPrecioUnitario(producto);
+                  const subtotal = calculateSubtotal(producto);
                   
-                  <div style={styles.productDetails}>
-                    <div style={styles.detailRow}>
-                      <span>Cantidad:</span>
-                      <strong>{producto.cantidad}</strong>
-                    </div>
-                    <div style={styles.detailRow}>
-                      <span>Precio unitario:</span>
-                      <strong>{formatPrice(producto.precio_unitario)}</strong>
-                    </div>
-                    <div style={styles.detailRow}>
-                      <span>Subtotal:</span>
-                      <strong style={styles.subtotal}>
-                        {formatPrice(calculateSubtotal(producto))}
-                      </strong>
-                    </div>
-                    {producto.descripcion && (
-                      <div style={styles.description}>
-                        <span>Descripción:</span> {producto.descripcion}
+                  return (
+                    <div key={idx} style={styles.productCard}>
+                      <div style={styles.productHeader}>
+                        <strong style={styles.productName}>{producto.nombre_producto}</strong>
+                        {producto.imagen_url && (
+                          <img 
+                            src={`http://localhost:3000${producto.imagen_url}`} 
+                            alt={producto.nombre_producto}
+                            style={styles.productImage}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        )}
                       </div>
-                    )}
-                    {producto.codigo_barras && (
-                      <div style={styles.barcode}>
-                        <span>Código barras:</span> {producto.codigo_barras}
+                      
+                      <div style={styles.productDetails}>
+                        <div style={styles.detailRow}>
+                          <span>Cantidad:</span>
+                          <strong>{producto.cantidad}</strong>
+                        </div>
+                        <div style={styles.detailRow}>
+                          <span>Precio unitario:</span>
+                          <strong>{formatPrice(precioUnitario)}</strong>
+                        </div>
+                        <div style={styles.detailRow}>
+                          <span>Subtotal:</span>
+                          <strong style={styles.subtotal}>
+                            {formatPrice(subtotal)}
+                          </strong>
+                        </div>
+                        
+                        {producto.descripcion && (
+                          <div style={styles.description}>
+                            <span>Descripción:</span> {producto.descripcion}
+                          </div>
+                        )}
+                        {producto.codigo_barras && (
+                          <div style={styles.barcode}>
+                            <span>Código barras:</span> {producto.codigo_barras}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div style={styles.cardFooter}>
-            <div style={styles.totalSection}>
-              <strong style={styles.grandTotal}>
-                Total de la venta: {formatPrice(venta.total)}
-              </strong>
+            {/* SECCIÓN DE RESUMEN CON CÁLCULO DE TOTAL */}
+            <div style={styles.summarySection}>
+              <div style={styles.summaryRow}>
+                <span>Subtotal productos:</span>
+                <strong>
+                  {formatPrice(
+                    venta.productos?.reduce((sum, producto) => sum + calculateSubtotal(producto), 0) || 0
+                  )}
+                </strong>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Total de la venta:</span>
+                <strong style={styles.grandTotal}>
+                  {formatPrice(totalVenta)}
+                </strong>
+              </div>
             </div>
-            <button style={styles.buttonDanger} onClick={() => handleUndoClick(venta)}>
-              ⚠️ Deshacer venta
-            </button>
+
+            <div style={styles.cardFooter}>
+              <div style={styles.totalSection}>
+                <strong style={styles.grandTotal}>
+                  Total de la venta: {formatPrice(totalVenta)}
+                </strong>
+              </div>
+              <button style={styles.buttonDanger} onClick={() => handleUndoClick(venta)}>
+                ⚠️ Deshacer venta
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* --- Modal Nueva Venta --- */}
       {openNew && (
@@ -295,9 +372,6 @@ const styles = {
     cursor: 'pointer',
     fontSize: '1rem',
     transition: 'all 0.3s ease',
-    '&:hover': {
-      backgroundColor: '#8b6b4a',
-    }
   },
   searchBox: { 
     display: 'flex', 
@@ -421,6 +495,20 @@ const styles = {
   subtotal: {
     color: '#2c5aa0',
     fontWeight: 'bold'
+  },
+  // SECCIÓN DE RESUMEN
+  summarySection: {
+    backgroundColor: '#f0e6d2',
+    padding: '1rem',
+    borderRadius: '8px',
+    marginBottom: '1rem',
+    border: '1px solid #d2b48c'
+  },
+  summaryRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '1rem',
+    marginBottom: '0.5rem'
   },
   description: {
     fontSize: '0.85rem',

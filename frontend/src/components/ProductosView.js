@@ -252,211 +252,206 @@ export default function ProductosView({ filter = null }) {
   return (
     <PageBackground>
       <div style={styles.page}>
-      <div style={styles.container}>
-        {/* --- Encabezado --- */}
-        <header style={styles.header}>
-          <h1 style={styles.title}>{getFilterTitle()}</h1>
-          <p style={styles.subtitle}>
-            {activeFilter && activeFilter !== 0 
-              ? `Categoría: ${CATEGORIAS[activeFilter].nombre}` 
-              : 'Piezas únicas hechas a mano'
-            }
-          </p>
-          
-          {/* Filtros activos - SOLO se muestra cuando hay un filtro activo real */}
-          {activeFilter && activeFilter !== 0 && (
-            <div style={styles.activeFilter}>
-              <span style={styles.filterBadge}>
-                {getFilterTitle()}
-                <button 
-                  onClick={clearFilter}
-                  style={styles.clearFilter}
-                  aria-label="Quitar filtro"
-                >
-                  ×
-                </button>
-              </span>
+        <div style={styles.container}>
+          {/* --- Encabezado --- */}
+          <header style={styles.header}>
+            <div style={styles.headerContent}>
+              <h1 style={styles.title}>{getFilterTitle()}</h1>
+              <p style={styles.subtitle}>
+                {activeFilter && activeFilter !== 0 
+                  ? `Categoría: ${CATEGORIAS[activeFilter].nombre}` 
+                  : 'Piezas únicas hechas a mano'
+                }
+              </p>
+              
+              {/* Filtros activos - SOLO se muestra cuando hay un filtro activo real */}
+              {activeFilter && activeFilter !== 0 && (
+                <div style={styles.activeFilter}>
+                  <span style={styles.filterBadge}>
+                    {getFilterTitle()}
+                    <button 
+                      onClick={clearFilter}
+                      style={styles.clearFilter}
+                      aria-label="Quitar filtro"
+                    >
+                      ×
+                    </button>
+                  </span>
+                </div>
+              )}
+              
+              <div style={styles.searchRow}>
+                <input
+                  aria-label="Buscar productos"
+                  placeholder="Buscar por nombre o descripción..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  style={styles.searchInput}
+                />
+                {/* Botón "Ver Todos" - SOLO se muestra cuando hay filtro activo */}
+                {activeFilter && activeFilter !== 0 && (
+                  <button 
+                    onClick={clearFilter}
+                    style={styles.clearFilterBtn}
+                  >
+                    Ver Todos
+                  </button>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* --- Mensajes de estado --- */}
+          {error && (
+            <div style={styles.messageContainer}>
+              <div style={styles.errorBox}>{String(error)}</div>
+            </div>
+          )}
+          {loading && (
+            <div style={styles.messageContainer}>
+              <div style={styles.loading}>Cargando productos...</div>
             </div>
           )}
           
-          <div style={styles.searchRow}>
-            <input
-              aria-label="Buscar productos"
-              placeholder="Buscar por nombre o descripción..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={styles.searchInput}
-            />
-            {/* Botón "Ver Todos" - SOLO se muestra cuando hay filtro activo */}
-            {activeFilter && activeFilter !== 0 && (
-              <button 
-                onClick={clearFilter}
-                style={styles.clearFilterBtn}
-              >
-                Ver Todos
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* --- Mensajes de estado --- */}
-        {error && <div style={styles.errorBox}>{String(error)}</div>}
-        {loading && <div style={styles.loading}>Cargando productos...</div>}
-        
-        {/* --- Vista cuando hay búsqueda activa --- */}
-        {!loading && query.trim() && (
-          <>
-            <div style={styles.searchResultsHeader}>
-              <h2 style={styles.searchTitle}>
-                🔍 Resultados de búsqueda para "{query}"
-              </h2>
-              <p style={styles.searchSubtitle}>
-                {Object.values(filteredPorCategoria).reduce((total, cat) => total + cat.productos.length, 0)} 
-                producto(s) encontrado(s)
-              </p>
-            </div>
-            
-            {Object.values(filteredPorCategoria).length === 0 ? (
-              <div style={styles.empty}>
-                No se encontraron productos para "{query}"
-                <br />
-                <button 
-                  onClick={() => setQuery('')}
-                  style={styles.resetFiltersBtn}
-                >
-                  Limpiar búsqueda
-                </button>
-              </div>
-            ) : (
-              Object.keys(filteredPorCategoria).map(categoriaId =>
-                renderCategoriaSection(categoriaId, filteredPorCategoria[categoriaId])
-              )
-            )}
-          </>
-        )}
-
-        {/* --- Vista normal por categorías (sin búsqueda) --- */}
-        {!loading && !query.trim() && (
-          <>
-            {activeFilter && activeFilter !== 0 ? (
-              // Vista de una sola categoría cuando hay filtro activo
-              Object.keys(productosPorCategoria)
-                .filter(catId => catId === activeFilter.toString())
-                .map(categoriaId => 
-                  renderCategoriaSection(categoriaId, productosPorCategoria[categoriaId])
-                )
-            ) : (
-              // Vista de todas las categorías
-              Object.keys(productosPorCategoria).map(categoriaId =>
-                renderCategoriaSection(categoriaId, productosPorCategoria[categoriaId])
-              )
-            )}
-            
-            {/* Mensaje cuando no hay productos */}
-            {Object.values(productosPorCategoria).every(cat => cat.productos.length === 0) && (
-              <div style={styles.empty}>
-                No se encontraron productos.
-              </div>
-            )}
-          </>
-        )}
-      </div>
-      {/* --- Panel de detalle --- */}
-      {selected && (
-        <div style={styles.overlay} onClick={() => setSelected(null)}>
-          <div
-            style={{
-              ...styles.detailModal,
-              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={styles.detailLeft}>
-              {selected.imagen_url ? (
-                <img
-                  src={`${API_BASE}${selected.imagen_url}`}
-                  alt={selected.nombre}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = "";
-                    e.currentTarget.alt = "Imagen no disponible";
-                  }}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    borderRadius: "12px",
-                  }}
-                />
-              ) : (
-                <div style={styles.detailImage}>Imagen grande</div>
-              )}
-            </div>
-
-            <div style={styles.detailRight}>
-              <h2 style={styles.detailTitle}>{selected.nombre}</h2>
-              <div style={styles.detailPrice}>
-                ${Number(selected.precio).toFixed(2)}
-              </div>
-              <p style={styles.detailDesc}>
-                {selected.descripcion || "Pieza de cerámica artesanal."}
-              </p>
-
-              {/* --- Mostrar categoría --- */}
-              {selected.id_categoria && (
-                <div style={{
-                  ...styles.categoriaBadgeLarge,
-                  backgroundColor: `${CATEGORIAS[selected.id_categoria]?.color || COLORS.terracota}20`,
-                  color: CATEGORIAS[selected.id_categoria]?.color || COLORS.terracota
-                }}>
-                  {CATEGORIAS[selected.id_categoria]?.icon || '📦'} 
-                  {CATEGORIAS[selected.id_categoria]?.nombre || 'Categoría desconocida'}
+          {/* --- Contenido Principal --- */}
+          <main style={styles.mainContent}>
+            {/* --- Vista cuando hay búsqueda activa --- */}
+            {!loading && query.trim() && (
+              <>
+                <div style={styles.searchResultsHeader}>
+                  <h2 style={styles.searchTitle}>
+                    🔍 Resultados de búsqueda para "{query}"
+                  </h2>
+                  <p style={styles.searchSubtitle}>
+                    {Object.values(filteredPorCategoria).reduce((total, cat) => total + cat.productos.length, 0)} 
+                    producto(s) encontrado(s)
+                  </p>
                 </div>
-              )}
-
-              {/* --- Mostrar QR dinámico --- */}
-              <div style={{ marginTop: "1rem", textAlign: "center" }}>
-                <strong>Código QR:</strong>
-                <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "center" }}>
-                  <div style={{ background: "#fff", padding: 8, borderRadius: 8 }}>
-                    <QRImage value={JSON.stringify({ id_producto: selected.id_producto, nombre: selected.nombre })} size={180} />
+                
+                {Object.values(filteredPorCategoria).length === 0 ? (
+                  <div style={styles.emptyState}>
+                    <div style={styles.empty}>
+                      No se encontraron productos para "{query}"
+                      <br />
+                      <button 
+                        onClick={() => setQuery('')}
+                        style={styles.resetFiltersBtn}
+                      >
+                        Limpiar búsqueda
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                ) : (
+                  Object.keys(filteredPorCategoria).map(categoriaId =>
+                    renderCategoriaSection(categoriaId, filteredPorCategoria[categoriaId])
+                  )
+                )}
+              </>
+            )}
 
-              {/* --- Info extra --- */}
-              <div style={styles.detailMeta}>
-                <span style={styles.metaItem}>
-                  <strong>Disponibles:</strong> {selected.cantidad}
-                </span>
-              </div>
-
-              {/* --- Acciones --- */}
-              <div style={styles.actions}>
-                <button
-                  style={styles.cta}
-                  onClick={() =>
-                    window.open(
-                      `${
-                        process.env.REACT_APP_API_BASE
-                      }${selected.qr_image_path?.replace(/^\/public/, "") || ''}`,
-                      "_blank"
+            {/* --- Vista normal por categorías (sin búsqueda) --- */}
+            {!loading && !query.trim() && (
+              <>
+                {activeFilter && activeFilter !== 0 ? (
+                  // Vista de una sola categoría cuando hay filtro activo
+                  Object.keys(productosPorCategoria)
+                    .filter(catId => catId === activeFilter.toString())
+                    .map(categoriaId => 
+                      renderCategoriaSection(categoriaId, productosPorCategoria[categoriaId])
                     )
-                  }
-                >
-                  Escanear QR
-                </button>
-                <button
-                  style={styles.secondaryBtn}
-                  onClick={() => setSelected(null)}
-                >
-                  Cerrar
-                </button>
+                ) : (
+                  // Vista de todas las categorías
+                  Object.keys(productosPorCategoria).map(categoriaId =>
+                    renderCategoriaSection(categoriaId, productosPorCategoria[categoriaId])
+                  )
+                )}
+                
+                {/* Mensaje cuando no hay productos */}
+                {Object.values(productosPorCategoria).every(cat => cat.productos.length === 0) && (
+                  <div style={styles.emptyState}>
+                    <div style={styles.empty}>
+                      No se encontraron productos.
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </main>
+        </div>
+
+        {/* --- Panel de detalle --- */}
+        {selected && (
+          <div style={styles.overlay} onClick={() => setSelected(null)}>
+            <div
+              style={{
+                ...styles.detailModal,
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.detailLeft}>
+                {selected.imagen_url ? (
+                  <img
+                    src={`${API_BASE}${selected.imagen_url}`}
+                    alt={selected.nombre}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = "";
+                      e.currentTarget.alt = "Imagen no disponible";
+                    }}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: "12px",
+                    }}
+                  />
+                ) : (
+                  <div style={styles.detailImage}>Imagen grande</div>
+                )}
+              </div>
+
+              <div style={styles.detailRight}>
+                <h2 style={styles.detailTitle}>{selected.nombre}</h2>
+                <div style={styles.detailPrice}>
+                  ${Number(selected.precio).toFixed(2)}
+                </div>
+                <p style={styles.detailDesc}>
+                  {selected.descripcion || "Pieza de cerámica artesanal."}
+                </p>
+
+                {/* --- Mostrar categoría --- */}
+                {selected.id_categoria && (
+                  <div style={{
+                    ...styles.categoriaBadgeLarge,
+                    backgroundColor: `${CATEGORIAS[selected.id_categoria]?.color || COLORS.terracota}20`,
+                    color: CATEGORIAS[selected.id_categoria]?.color || COLORS.terracota
+                  }}>
+                    {CATEGORIAS[selected.id_categoria]?.icon || '📦'} 
+                    {CATEGORIAS[selected.id_categoria]?.nombre || 'Categoría desconocida'}
+                  </div>
+                )}
+
+                {/* --- Info extra --- */}
+                <div style={styles.detailMeta}>
+                  <span style={styles.metaItem}>
+                    <strong>Disponibles:</strong> {selected.cantidad}
+                  </span>
+                </div>
+
+                {/* --- Acciones --- */}
+                <div style={styles.actions}>
+                  <button
+                    style={styles.secondaryBtn}
+                    onClick={() => setSelected(null)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </PageBackground>
   );
@@ -468,6 +463,8 @@ const styles = {
     backgroundColor: "transparent",
     color: COLORS.grisPiedra,
     position: "relative",
+    display: "flex",
+    flexDirection: "column",
   },
   container: {
     position: "relative",
@@ -475,10 +472,33 @@ const styles = {
     margin: "0 auto",
     padding: "2rem 1rem 3rem",
     zIndex: 1,
+    width: "100%",
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
   },
-  header: { textAlign: "center", marginBottom: "1.5rem" },
-  title: { color: COLORS.terracota, fontSize: "2rem", marginBottom: "0.25rem" },
-  subtitle: { color: COLORS.carbon, opacity: 0.8 },
+  header: {
+    width: "100%",
+    marginBottom: "2rem",
+  },
+  headerContent: {
+    textAlign: "center",
+    maxWidth: "800px",
+    margin: "0 auto",
+  },
+  title: { 
+    color: COLORS.terracota, 
+    fontSize: "2rem", 
+    marginBottom: "0.25rem",
+    fontWeight: "700",
+    lineHeight: "1.2",
+  },
+  subtitle: { 
+    color: COLORS.carbon, 
+    opacity: 0.8,
+    fontSize: "1.1rem",
+    marginBottom: "1rem",
+  },
   activeFilter: {
     margin: "1rem 0",
     display: "flex",
@@ -509,44 +529,58 @@ const styles = {
     justifyContent: "center",
   },
   searchRow: { 
-    marginTop: "1rem", 
+    marginTop: "1.5rem", 
     display: "flex", 
     justifyContent: "center",
-    gap: "0.5rem",
+    gap: "0.8rem",
     alignItems: "center",
     flexWrap: "wrap",
   },
   searchInput: {
     width: "100%",
-    maxWidth: 400,
+    maxWidth: "400px",
     padding: "0.8rem 1rem",
-    borderRadius: 12,
+    borderRadius: "12px",
     border: `1px solid ${COLORS.arena}`,
     backgroundColor: "#fff",
     outline: "none",
     color: COLORS.carbon,
+    fontSize: "1rem",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
   },
   clearFilterBtn: {
     background: COLORS.carbon,
     color: "white",
     border: "none",
-    padding: "0.8rem 1.2rem",
+    padding: "0.8rem 1.5rem",
     borderRadius: "12px",
     cursor: "pointer",
     fontSize: "0.9rem",
     fontWeight: "500",
     whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+  },
+  mainContent: {
+    flex: 1,
+    width: "100%",
+  },
+  messageContainer: {
+    width: "100%",
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: "2rem",
   },
   // Secciones de categoría
   categoriaSection: {
     marginBottom: "3rem",
+    width: "100%",
   },
   categoriaHeader: {
     display: "flex",
     alignItems: "center",
     gap: "1rem",
     marginBottom: "1.5rem",
-    paddingBottom: "0.5rem",
+    paddingBottom: "0.8rem",
     borderBottom: `2px solid ${COLORS.arena}`,
   },
   categoriaIcon: {
@@ -558,11 +592,13 @@ const styles = {
     justifyContent: "center",
     fontSize: "1.5rem",
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    flexShrink: 0,
   },
   categoriaTitle: {
     color: COLORS.carbon,
     fontSize: "1.5rem",
     margin: 0,
+    fontWeight: "600",
   },
   categoriaCount: {
     color: COLORS.grisPiedra,
@@ -573,42 +609,55 @@ const styles = {
   searchResultsHeader: {
     textAlign: "center",
     marginBottom: "2rem",
-    padding: "1rem",
+    padding: "1.5rem",
     background: "rgba(176, 131, 106, 0.1)",
     borderRadius: "12px",
+    border: `1px solid ${COLORS.terracota}30`,
   },
   searchTitle: {
     color: COLORS.terracota,
-    fontSize: "1.3rem",
+    fontSize: "1.4rem",
     margin: "0 0 0.5rem 0",
+    fontWeight: "600",
   },
   searchSubtitle: {
     color: COLORS.grisPiedra,
     margin: 0,
+    fontSize: "1rem",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-    gap: "1rem",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+    gap: "1.5rem",
+    width: "100%",
   },
   card: {
     backgroundColor: COLORS.arena,
-    borderRadius: 16,
+    borderRadius: "16px",
     overflow: "hidden",
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: `${COLORS.carbon}20`,
     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
     cursor: "pointer",
-    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
+    transition: "all 0.3s ease",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
   },
   cardHover: {
-    transform: "translateY(-2px)",
+    transform: "translateY(-4px)",
     backgroundColor: COLORS.hoverSand,
-    boxShadow: "0 10px 24px rgba(176,131,106,0.35), 0 0 0 2px rgba(176,131,106,0.35)",
+    boxShadow: "0 12px 28px rgba(176,131,106,0.25)",
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: COLORS.terracota,
   },
-  cardImage: { height: 160, backgroundColor: "#fff" },
+  cardImage: { 
+    height: "200px", 
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
   productImagePlaceholder: {
     height: "100%",
     display: "flex",
@@ -616,49 +665,115 @@ const styles = {
     justifyContent: "center",
     color: COLORS.carbon,
     opacity: 0.7,
+    fontSize: "1rem",
   },
-  cardBody: { padding: "0.9rem 1rem", position: "relative" },
-  cardTitle: { margin: 0, fontSize: "1.05rem", color: COLORS.carbon },
-  cardDesc: { margin: "0.35rem 0 0.5rem", fontSize: "0.9rem", opacity: 0.8, minHeight: "40px" },
-  cardPrice: { color: COLORS.terracota, fontWeight: 700, fontSize: "1.1rem" },
+  cardBody: { 
+    padding: "1.2rem", 
+    position: "relative",
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+  },
+  cardTitle: { 
+    margin: 0, 
+    fontSize: "1.1rem", 
+    color: COLORS.carbon,
+    fontWeight: "600",
+    lineHeight: "1.3",
+  },
+  cardDesc: { 
+    margin: "0.5rem 0 0.8rem", 
+    fontSize: "0.9rem", 
+    opacity: 0.8, 
+    minHeight: "40px",
+    lineHeight: "1.4",
+    flex: 1,
+  },
+  cardPrice: { 
+    color: COLORS.terracota, 
+    fontWeight: "700", 
+    fontSize: "1.2rem",
+    marginBottom: "0.5rem",
+  },
   categoriaBadge: {
-    padding: "0.3rem 0.6rem",
+    padding: "0.4rem 0.8rem",
     borderRadius: "8px",
     fontSize: "0.75rem",
     fontWeight: "600",
-    marginTop: "0.5rem",
+    marginTop: "auto",
     display: "inline-block",
+    alignSelf: "flex-start",
   },
   categoriaBadgeLarge: {
-    padding: "0.5rem 1rem",
+    padding: "0.6rem 1.2rem",
     borderRadius: "8px",
     fontSize: "0.9rem",
     fontWeight: "600",
-    margin: "0.5rem 0",
+    margin: "0.8rem 0",
     display: "inline-block",
+  },
+  emptyState: {
+    width: "100%",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "3rem 1rem",
+  },
+  empty: { 
+    textAlign: "center", 
+    color: COLORS.grisPiedra,
+    lineHeight: "1.6",
+    fontSize: "1.1rem",
+  },
+  resetFiltersBtn: {
+    background: COLORS.terracota,
+    color: "white",
+    border: "none",
+    padding: "0.8rem 1.8rem",
+    borderRadius: "10px",
+    cursor: "pointer",
+    marginTop: "1.2rem",
+    fontSize: "0.95rem",
+    fontWeight: "500",
+    transition: "all 0.2s ease",
   },
   overlay: {
     position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "1rem",
+    padding: "1.5rem",
     zIndex: 1000,
+    backdropFilter: "blur(4px)",
   },
   detailModal: {
     width: "100%",
-    maxWidth: 980,
+    maxWidth: "900px",
     backgroundColor: COLORS.hueso,
-    borderRadius: 18,
+    borderRadius: "18px",
     overflow: "hidden",
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+    maxHeight: "90vh",
+    overflowY: "auto",
   },
-  detailLeft: { backgroundColor: "#fff", minHeight: 360 },
-  detailRight: { padding: "1.2rem 1.2rem 1.4rem" },
+  detailLeft: { 
+    backgroundColor: "#fff", 
+    minHeight: "400px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailRight: { 
+    padding: "2rem",
+    display: "flex",
+    flexDirection: "column",
+  },
   detailImage: {
     height: "100%",
     display: "flex",
@@ -666,54 +781,83 @@ const styles = {
     justifyContent: "center",
     color: COLORS.carbon,
     opacity: 0.8,
+    fontSize: "1.2rem",
   },
-  detailTitle: { color: COLORS.carbon, marginTop: 0 },
-  detailPrice: { color: COLORS.terracota, fontSize: "1.4rem", fontWeight: 700 },
-  detailDesc: { lineHeight: 1.5 },
+  detailTitle: { 
+    color: COLORS.carbon, 
+    marginTop: 0,
+    fontSize: "1.8rem",
+    fontWeight: "700",
+    lineHeight: "1.2",
+  },
+  detailPrice: { 
+    color: COLORS.terracota, 
+    fontSize: "1.6rem", 
+    fontWeight: "700",
+    margin: "0.5rem 0",
+  },
+  detailDesc: { 
+    lineHeight: "1.6",
+    fontSize: "1rem",
+    margin: "1rem 0",
+  },
   detailMeta: {
-    marginTop: "0.8rem",
+    marginTop: "1rem",
     display: "flex",
     gap: "1rem",
     flexWrap: "wrap",
   },
   metaItem: {
     background: COLORS.arena,
-    padding: "0.35rem 0.6rem",
-    borderRadius: 8,
+    padding: "0.5rem 1rem",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
   },
-  actions: { marginTop: "1rem", display: "flex", gap: "0.6rem" },
+  actions: { 
+    marginTop: "auto", 
+    display: "flex", 
+    gap: "0.8rem",
+    paddingTop: "1.5rem",
+  },
   cta: {
     backgroundColor: COLORS.terracota,
-    color: "white",
-    border: "none",
-    padding: "0.6rem 1rem",
-    borderRadius: 10,
-    cursor: "pointer",
-  },
-  secondaryBtn: {
-    backgroundColor: COLORS.carbon,
-    color: "white",
-    border: "none",
-    padding: "0.6rem 1rem",
-    borderRadius: 10,
-    cursor: "pointer",
-    opacity: 0.85,
-  },
-  loading: { textAlign: "center", margin: "1rem 0" },
-  empty: { 
-    textAlign: "center", 
-    margin: "2rem 0",
-    color: COLORS.grisPiedra,
-    lineHeight: "1.6",
-  },
-  resetFiltersBtn: {
-    background: COLORS.terracota,
     color: "white",
     border: "none",
     padding: "0.8rem 1.5rem",
     borderRadius: "10px",
     cursor: "pointer",
-    marginTop: "1rem",
-    fontSize: "0.9rem",
+    fontSize: "1rem",
+    fontWeight: "600",
+    flex: 1,
+    transition: "all 0.2s ease",
+  },
+  secondaryBtn: {
+    backgroundColor: COLORS.carbon,
+    color: "white",
+    border: "none",
+    padding: "0.8rem 1.5rem",
+    borderRadius: "10px",
+    cursor: "pointer",
+    opacity: 0.85,
+    fontSize: "1rem",
+    fontWeight: "600",
+    flex: 1,
+    transition: "all 0.2s ease",
+  },
+  loading: { 
+    textAlign: "center", 
+    margin: "2rem 0",
+    fontSize: "1.1rem",
+    color: COLORS.terracota,
+  },
+  errorBox: { 
+    background: "rgba(196, 69, 54, 0.1)",
+    border: "1px solid rgba(196, 69, 54, 0.3)",
+    color: "#C44536",
+    padding: "1rem 1.5rem",
+    borderRadius: "12px",
+    textAlign: "center",
+    maxWidth: "500px",
+    fontSize: "1rem",
   },
 };
