@@ -112,8 +112,6 @@ const Home = () => {
       <header className="hero-section">
         <img src={logo} alt={cliente.nombre} className="client-logo" />
         <h1 className="client-name">{cliente.nombre}</h1>
-        <p className="description">{cliente.descripcion}</p>
-        <p className="promo">{cliente.mensajePromocional}</p>
       </header>
 
       <section className="products-section">

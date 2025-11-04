@@ -1,5 +1,5 @@
 import { pool } from "../config/db.js";
-import { v4 as uuidv4 } from "uuid";
+import { generateUniqueTicketBarcode } from "../utils/barcode.js";
 
 // Crear una venta con productos y generar ticket
 export const crearVenta = async (req, res) => {
@@ -25,8 +25,9 @@ export const crearVenta = async (req, res) => {
       `INSERT INTO venta (tipo_pago) VALUES ($1) RETURNING id_venta, fecha`,
       [tipo_pago]
     );
-    const { id_venta, fecha } = ventaInsert.rows[0];
-    const codigo_venta = uuidv4();
+  const { id_venta, fecha } = ventaInsert.rows[0];
+  // Generar código de venta en formato de código de barras (EAN-13)
+  const codigo_venta = await generateUniqueTicketBarcode(client);
 
     const ticketInsert = await client.query(
       `INSERT INTO ticket (codigo_venta, id_venta) VALUES ($1, $2) RETURNING id_ticket`,
