@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
   secure: true, // conexión SSL/TLS
   auth: {
     user: process.env.EMAIL_USER || "luisfernandoma94@gmail.com",
-    pass: (process.env.EMAIL_PASS || "sonbhxowtjwpytqv").replace(/\s+/g, ""), // elimina espacios por seguridad
+    pass: (process.env.EMAIL_PASS || "sonbhxowtjwpytqv").replace(/\s+/g, ""), 
   },
 });
 
