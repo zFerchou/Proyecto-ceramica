@@ -12,7 +12,11 @@ await jest.unstable_mockModule("../config/db.js", () => ({
 }));
 
 // Mock UUID para codigo_venta estable
-await jest.unstable_mockModule("uuid", () => ({ v4: () => "venta-uuid" }));
+// Mock barcode generator to return a deterministic EAN-13 code
+const MOCK_BARCODE = "7501234567897";
+await jest.unstable_mockModule("../utils/barcode.js", () => ({
+  generateUniqueTicketBarcode: async () => MOCK_BARCODE,
+}));
 
 const ventaCtrl = await import("../controllers/ventaController.js");
 const {
@@ -65,7 +69,7 @@ describe("Venta Controller", () => {
         expect.objectContaining({
           id_venta: 10,
           id_ticket: 77,
-          codigo_venta: "venta-uuid",
+          codigo_venta: MOCK_BARCODE,
           productos: [
             expect.objectContaining({ nombre_producto: "Jarrón", cantidad: 2, precio: 3.5 }),
           ],
@@ -137,7 +141,7 @@ describe("Venta Controller", () => {
 
   describe("deshacerVenta", () => {
     it("revierte stock y elimina venta por codigo_venta", async () => {
-      const req = { params: { codigo_venta: "venta-uuid" } };
+  const req = { params: { codigo_venta: MOCK_BARCODE } };
       const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 
       clientMock.query.mockImplementation(async (sql, params) => {
@@ -158,19 +162,19 @@ describe("Venta Controller", () => {
 
       await deshacerVenta(req, res);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ mensaje: expect.any(String), codigo_venta: "venta-uuid", id_venta: 10 })
+        expect.objectContaining({ mensaje: expect.any(String), codigo_venta: MOCK_BARCODE, id_venta: 10 })
       );
     });
   });
 
   describe("obtenerVentaPorCodigo", () => {
     it("devuelve venta y productos por codigo_venta", async () => {
-      const req = { params: { codigo_venta: "venta-uuid" } };
+  const req = { params: { codigo_venta: MOCK_BARCODE } };
       const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
       poolQueryMock.mockImplementation(async (sql, params) => {
         if (/FROM venta v\s+JOIN ticket t/i.test(sql) && /WHERE t\.codigo_venta = \$1/i.test(sql)) {
-          return { rowCount: 1, rows: [{ id_venta: 10, fecha: "2025-10-20", tipo_pago: "Efectivo", id_ticket: 77, codigo_venta: "venta-uuid" }] };
+          return { rowCount: 1, rows: [{ id_venta: 10, fecha: "2025-10-20", tipo_pago: "Efectivo", id_ticket: 77, codigo_venta: MOCK_BARCODE }] };
         }
         if (/FROM ticket_producto tp\s+JOIN producto p/i.test(sql)) {
           return { rows: [{ nombre_producto: "Jarrón", cantidad: 2, precio: 3.5 }] };
@@ -198,7 +202,7 @@ describe("Venta Controller", () => {
   describe("actualizarVentaPorCodigo", () => {
     it("actualiza tipo_pago y líneas de productos", async () => {
       const req = {
-        params: { codigo_venta: "venta-uuid" },
+        params: { codigo_venta: MOCK_BARCODE },
         body: { tipo_pago: "Transacción", productos: [{ nombre_producto: "Jarrón", cantidad: 3 }] },
       };
       const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
@@ -225,14 +229,14 @@ describe("Venta Controller", () => {
 
       await actualizarVentaPorCodigo(req, res);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ mensaje: expect.any(String), codigo_venta: "venta-uuid" })
+        expect.objectContaining({ mensaje: expect.any(String), codigo_venta: MOCK_BARCODE })
       );
     });
   });
 
   describe("anularProductosPorCodigo", () => {
     it("anula cantidades y elimina línea si queda en 0", async () => {
-      const req = { params: { codigo_venta: "venta-uuid" }, body: { productos: [{ nombre_producto: "Jarrón", cantidad: 2 }] } };
+  const req = { params: { codigo_venta: MOCK_BARCODE }, body: { productos: [{ nombre_producto: "Jarrón", cantidad: 2 }] } };
       const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 
       poolQueryMock.mockImplementation(async (sql, params) => {
@@ -254,7 +258,7 @@ describe("Venta Controller", () => {
 
       await anularProductosPorCodigo(req, res);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ mensaje: expect.any(String), codigo_venta: "venta-uuid" })
+        expect.objectContaining({ mensaje: expect.any(String), codigo_venta: MOCK_BARCODE })
       );
     });
   });
