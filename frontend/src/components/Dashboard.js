@@ -190,6 +190,17 @@ export default function Dashboard() {
           <h2 className="navbar-title">Menú</h2>
         </div>
 
+        {/* Botón de Inicio en la barra */}
+        <div className="navbar-right">
+          <button
+            className="home-btn"
+            onClick={() => setActivePage("home")}
+            aria-label="Ir al inicio"
+          >
+             Inicio
+          </button>
+        </div>
+
         {menuOpen && (
           <nav className="dropdown-menu">
             <ul>
@@ -295,6 +306,7 @@ export default function Dashboard() {
           box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
         .navbar-left { display: flex; align-items: center; }
+        .navbar-right { display: flex; align-items: center; }
         .navbar-title { font-size: 1.5rem; margin-left: 15px; font-weight: 600; }
         .menu-btn { 
           background: none; 
@@ -307,6 +319,27 @@ export default function Dashboard() {
           border-radius: 5px;
         }
         .menu-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.1); }
+
+        /* BOTÓN INICIO EN LA BARRA */
+        .home-btn {
+          background: rgba(255, 255, 255, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          color: white;
+          padding: 10px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 0.95rem;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .home-btn:hover {
+          background: rgba(255, 255, 255, 0.25);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
 
         /* MENÚ DESPLEGABLE */
         .dropdown-menu { 
@@ -642,6 +675,10 @@ export default function Dashboard() {
           .categoria-card { padding: 25px 20px; }
           .navbar { padding: 12px 20px; }
           .navbar-title { font-size: 1.3rem; }
+          .home-btn { 
+            padding: 8px 12px; 
+            font-size: 0.9rem; 
+          }
         }
 
         @media (max-width: 480px) {
@@ -651,6 +688,10 @@ export default function Dashboard() {
           .section-title { font-size: 1.5rem; }
           .contact-grid { grid-template-columns: 1fr; }
           .footer-content { grid-template-columns: 1fr; }
+          .home-btn { 
+            padding: 6px 10px; 
+            font-size: 0.85rem; 
+          }
         }
       `}</style>
       </div>

@@ -10,6 +10,39 @@ import api, { API_BASE } from "../api/api";
 import CategoriesModal from "./CategoriesModal";
 import Marco from "../images/Marco.png";
 
+// Modal de Éxito para Producto Creado
+function SuccessModal({ isOpen, onClose, productName, onContinue }) {
+  if (!isOpen) return null;
+
+  return (
+    <div style={modalStyles.overlay}>
+      <div style={modalStyles.modal}>
+        <div style={modalStyles.successContent}>
+          <div style={modalStyles.successIcon}>✅</div>
+          <h2 style={modalStyles.successTitle}>¡Producto Creado!</h2>
+          <p style={modalStyles.successMessage}>
+            El producto <strong>"{productName}"</strong> se ha registrado exitosamente en el sistema.
+          </p>
+          <div style={modalStyles.buttonGroup}>
+            <button
+              style={modalStyles.buttonPrimary}
+              onClick={onContinue}
+            >
+              ➕ Registrar Otro Producto
+            </button>
+            <button
+              style={modalStyles.buttonSecondary}
+              onClick={onClose}
+            >
+              📦 Ir al Inventario
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Modal de Acciones (Imprimir, Editar, Eliminar)
 function ProductActionsModal({ isOpen, onClose, producto, onEdit, onDelete, onPrint }) {
   if (!isOpen) return null;
@@ -141,7 +174,6 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
     setError(null);
 
     try {
-      // CORREGIDO: Usar la nueva función con ID en lugar de nombre
       const res = await api.patchActualizarProducto(producto.id_producto, formData);
       
       if (res.ok) {
@@ -206,9 +238,10 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
                 name="precio"
                 value={formData.precio || ''}
                 onChange={handleChange}
-                style={modalStyles.input}
+                style={modalStyles.numberInput}
                 step="0.01"
                 min="0"
+                placeholder="0.00"
                 required
               />
             </label>
@@ -220,8 +253,9 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
                 name="cantidad"
                 value={formData.cantidad || ''}
                 onChange={handleChange}
-                style={modalStyles.input}
+                style={modalStyles.numberInput}
                 min="0"
+                placeholder="0"
                 required
               />
             </label>
@@ -271,6 +305,7 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
 export default function InventoryPage({ onClose }) {
   const [showRegister, setShowRegister] = useState(false);
   const [showUpdateStock, setShowUpdateStock] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [productos, setProductos] = useState([]);
@@ -297,7 +332,7 @@ export default function InventoryPage({ onClose }) {
         
         const initialQuantities = {};
         body.forEach(producto => {
-          initialQuantities[producto.id_producto] = 1;
+          initialQuantities[producto.id_producto] = '';
         });
         setLabelQuantities(initialQuantities);
       }
@@ -318,16 +353,27 @@ export default function InventoryPage({ onClose }) {
     setFilteredProductos(filtered);
   }, [searchTerm, productos]);
 
-  // 💾 Manejo de registro de producto
+  // 💾 Manejo de registro de producto - FLUJO CORREGIDO
   const handleRegisterSuccess = (body) => {
-    setMessage("✅ Producto creado: " + (body?.nombre || ""));
     setLastRegisteredProduct(body);
     setShowRegister(false);
-    setShowConfirm(true);
+    setShowSuccessModal(true); // Primero mostrar modal de éxito
     load();
   };
 
-  // 🛠️ Funciones para el modal de confirmación
+  // Funciones para el modal de éxito
+  const handleContinueRegister = () => {
+    setShowSuccessModal(false);
+    setShowRegister(true); // Volver a abrir el modal de registro
+  };
+
+  const handleGoToInventory = () => {
+    setShowSuccessModal(false);
+    // El usuario puede decidir qué hacer después
+    setShowConfirm(true); // Ahora mostrar el modal "¿Qué deseas hacer?"
+  };
+
+  // 🛠️ Funciones para el modal de confirmación "¿Qué deseas hacer?"
   const handleConfirmRegister = () => {
     setShowConfirm(false);
     setShowRegister(true);
@@ -412,7 +458,10 @@ export default function InventoryPage({ onClose }) {
 
   // Función para imprimir etiquetas CORREGIDA
   const handlePrintLabels = (producto) => {
-    const quantity = labelQuantities[producto.id_producto] || 1;
+    const quantity = parseInt(labelQuantities[producto.id_producto]) || 1;
+    
+    // Validar que la cantidad esté entre 1 y 100
+    const validQuantity = Math.max(1, Math.min(100, quantity));
     
     // Crear una ventana de impresión
     const printWindow = window.open('', '_blank');
@@ -476,7 +525,7 @@ export default function InventoryPage({ onClose }) {
           }
           .price {
             font-size: 18px;
-            font-weight: bold;
+            font-weight: bold,
             color: #2c5aa0;
             margin: 5px 0;
           }
@@ -507,7 +556,7 @@ export default function InventoryPage({ onClose }) {
     `);
 
     // Generar las etiquetas
-    for (let i = 0; i < quantity; i++) {
+    for (let i = 0; i < validQuantity; i++) {
       printWindow.document.write(`
         <div class="label">
           <div>
@@ -585,14 +634,23 @@ export default function InventoryPage({ onClose }) {
     `);
     printWindow.document.close();
     
-    setMessage(`🖨️ Imprimiendo ${quantity} etiquetas para ${producto.nombre}`);
+    setMessage(`🖨️ Imprimiendo ${validQuantity} etiquetas para ${producto.nombre}`);
     closeActionsModal();
   };
 
   // Manejar cambio en la cantidad de etiquetas
   const handleQuantityChange = (productId, value) => {
-    const quantity = parseInt(value) || 1;
-    if (quantity > 0 && quantity <= 100) {
+    // Si el valor está vacío, establecer como string vacío
+    if (value === '') {
+      setLabelQuantities(prev => ({
+        ...prev,
+        [productId]: ''
+      }));
+      return;
+    }
+    
+    const quantity = parseInt(value);
+    if (!isNaN(quantity) && quantity > 0 && quantity <= 100) {
       setLabelQuantities(prev => ({
         ...prev,
         [productId]: quantity
@@ -711,9 +769,10 @@ export default function InventoryPage({ onClose }) {
                         type="number"
                         min="1"
                         max="100"
-                        value={labelQuantities[p.id_producto] || 1}
+                        value={labelQuantities[p.id_producto] || ''}
                         onChange={(e) => handleQuantityChange(p.id_producto, e.target.value)}
                         style={styles.quantityInput}
+                        placeholder="1"
                       />
                     </div>
                     <button
@@ -749,6 +808,16 @@ export default function InventoryPage({ onClose }) {
           onSuccess={handleUpdateSuccess}
         />
       )}
+
+      {/* NUEVO: Modal de Éxito */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleGoToInventory}
+        productName={lastRegisteredProduct?.nombre || ""}
+        onContinue={handleContinueRegister}
+      />
+
+      {/* Modal de Confirmación "¿Qué deseas hacer?" - AHORA SE MUESTRA DESPUÉS DEL ÉXITO */}
       {showConfirm && (
         <ConfirmModal
           isOpen={showConfirm}
@@ -872,6 +941,21 @@ const modalStyles = {
     transition: 'all 0.3s ease',
     fontSize: '0.9rem',
   },
+  // NUEVO: Estilo específico para inputs numéricos sin flechas
+  numberInput: {
+    padding: '0.6rem',
+    borderRadius: '6px',
+    border: '1px solid #c2a878',
+    backgroundColor: '#fffdf8',
+    color: '#3e2c1c',
+    outline: 'none',
+    transition: 'all 0.3s ease',
+    fontSize: '0.9rem',
+    // Eliminar flechas en todos los navegadores
+    MozAppearance: 'textfield',
+    WebkitAppearance: 'none',
+    appearance: 'textfield',
+  },
   row: {
     display: 'flex',
     gap: '1rem',
@@ -950,7 +1034,28 @@ const modalStyles = {
     marginBottom: '1rem',
     fontSize: '1rem',
     lineHeight: '1.4',
-  }
+  },
+  // Estilos para el modal de éxito
+  successContent: {
+    textAlign: 'center',
+    padding: '1rem',
+  },
+  successIcon: {
+    fontSize: '4rem',
+    marginBottom: '1rem',
+  },
+  successTitle: {
+    fontSize: '1.8rem',
+    color: '#2d5016',
+    marginBottom: '1rem',
+    fontWeight: '600',
+  },
+  successMessage: {
+    fontSize: '1.1rem',
+    color: '#5a432c',
+    marginBottom: '2rem',
+    lineHeight: '1.5',
+  },
 };
 
 // 🎨 Estilos existentes
@@ -999,12 +1104,17 @@ const styles = {
     fontSize: "0.8rem",
     color: "#6b4f3b"
   },
+  // CAMBIADO: Input de cantidad sin flechas y con placeholder
   quantityInput: {
     width: "60px",
     padding: "0.3rem",
     border: "1px solid #c2a878",
     borderRadius: "4px",
-    textAlign: "center"
+    textAlign: "center",
+    // Eliminar flechas en todos los navegadores
+    MozAppearance: 'textfield',
+    WebkitAppearance: 'none',
+    appearance: 'textfield',
   },
   actionsButton: {
     backgroundColor: "#5a6b8c",
@@ -1017,3 +1127,20 @@ const styles = {
     transition: "all 0.3s ease"
   }
 };
+
+// Agregar estilos CSS globales para eliminar flechas en todos los inputs numéricos
+const style = document.createElement('style');
+style.textContent = `
+  /* Eliminar flechas en todos los inputs numéricos */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+`;
+document.head.appendChild(style);

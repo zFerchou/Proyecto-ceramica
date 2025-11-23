@@ -25,7 +25,9 @@ export default function ReportModal({ isOpen, onClose }) {
     try {
       const res = await getReporteVentas({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
       
-      console.log('✅ Respuesta de la API:', res);
+      console.log('✅ Respuesta COMPLETA de la API:', res);
+      console.log('✅ Productos más vendidos:', res.productos_mas_vendidos);
+      console.log('✅ Tipos de pago más usados:', res.tipo_pago_mas_usado);
       
       // ✅ VERIFICACIÓN COMPLETA DE LA RESPUESTA
       if (res && res.error) {
@@ -74,102 +76,113 @@ export default function ReportModal({ isOpen, onClose }) {
     }
 
     const totalVendido = getTotalVendido();
+    const productosFormateados = getProductosFormateados();
+    const tiposPagoFormateados = getTiposPagoFormateados();
     
-    let csv = 'Tipo,Datos,Valor\n';
+    // 🔥 SOLUCIÓN ROBUSTA: BOM + sin caracteres especiales
+    const BOM = '\uFEFF';
+    
+    let csv = BOM + 'REPORTE DE VENTAS\n\n';
+    
+    // Fechas del reporte (sin acentos para evitar problemas)
+    csv += `Periodo: ${fechaInicio} a ${fechaFin}\n`;
+    csv += `Fecha de generacion: ${new Date().toLocaleDateString()}\n\n`;
     
     // Total vendido
-    csv += `Total Vendido,,${totalVendido.toFixed(2)}\n`;
+    csv += 'TOTAL VENDIDO\n';
+    csv += `$${totalVendido.toFixed(2)}\n\n`;
     
-    // Productos más vendidos
-    csv += `Productos Más Vendidos,,\n`;
-    if (reporteData.productos_mas_vendidos && Array.isArray(reporteData.productos_mas_vendidos)) {
-      reporteData.productos_mas_vendidos.forEach((producto, index) => {
-        if (typeof producto === 'string') {
-          csv += `,${producto},\n`;
-        } else if (producto && producto.nombre) {
-          const cantidad = producto.cantidad || 0;
-          csv += `,${producto.nombre},${cantidad}\n`;
-        } else if (producto && producto.producto) {
-          // Por si la estructura es diferente
-          const cantidad = producto.cantidad || producto.total || 0;
-          csv += `,${producto.producto},${cantidad}\n`;
-        }
+    // Productos más vendidos (sin acentos)
+    csv += 'PRODUCTOS MAS VENDIDOS\n';
+    if (productosFormateados.length > 0) {
+      csv += 'Producto,Cantidad\n';
+      productosFormateados.forEach((producto) => {
+        csv += `${producto.nombre},${producto.cantidad}\n`;
       });
+    } else {
+      csv += 'No hay datos de productos vendidos\n';
     }
+    csv += '\n';
     
-    // Tipos de pago más usados
-    csv += `Tipos de Pago Más Usados,,\n`;
-    if (reporteData.tipo_pago_mas_usado && Array.isArray(reporteData.tipo_pago_mas_usado)) {
-      reporteData.tipo_pago_mas_usado.forEach((tipoPago, index) => {
-        if (typeof tipoPago === 'string') {
-          csv += `,${tipoPago},\n`;
-        } else if (tipoPago && tipoPago.tipo) {
-          const total = tipoPago.total || 0;
-          csv += `,${tipoPago.tipo},${total}\n`;
-        } else if (tipoPago && tipoPago.metodo_pago) {
-          // Por si la estructura es diferente
-          const total = tipoPago.total || tipoPago.cantidad || 0;
-          csv += `,${tipoPago.metodo_pago},${total}\n`;
-        }
+    // Tipos de pago más usados (sin acentos)
+    csv += 'TIPOS DE PAGO MAS USADOS\n';
+    if (tiposPagoFormateados.length > 0) {
+      csv += 'Metodo de Pago,Total\n';
+      tiposPagoFormateados.forEach((tipoPago) => {
+        csv += `${tipoPago.tipo},$${tipoPago.total}\n`;
       });
+    } else {
+      csv += 'No hay datos de metodos de pago\n';
     }
 
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // 🔥 SOLUCIÓN: Especificar explícitamente UTF-8
+    const blob = new Blob([csv], { type: 'text/csv; charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `reporte_${fechaInicio}_a_${fechaFin}.csv`;
+    a.download = `reporte_ventas_${fechaInicio}_a_${fechaFin}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  // ✅ FUNCIÓN PARA FORMATEAR PRODUCTOS MÁS VENDIDOS
+  // ✅ FUNCIÓN PARA FORMATEAR PRODUCTOS MÁS VENDIDOS - CORREGIDA
   const getProductosFormateados = () => {
     if (!reporteData || !reporteData.productos_mas_vendidos || !Array.isArray(reporteData.productos_mas_vendidos)) {
       return [];
     }
     
+    console.log('🔍 Estructura REAL de productos_mas_vendidos:', reporteData.productos_mas_vendidos);
+    
     return reporteData.productos_mas_vendidos.map((producto, index) => {
-      if (typeof producto === 'string') {
+      console.log(`🔍 Producto ${index}:`, producto);
+      
+      // Según la documentación del backend, la estructura es:
+      // { "nombre": "Jarra", "total_cantidad": 5 }
+      if (producto && typeof producto === 'object') {
+        const nombre = producto.nombre || producto.producto || `Producto ${index + 1}`;
+        // Usar total_cantidad según la documentación del backend
+        const cantidad = producto.total_cantidad || producto.cantidad || producto.total || 'N/A';
+        
+        return { nombre, cantidad };
+      }
+      // Si es un string simple
+      else if (typeof producto === 'string') {
         return { nombre: producto, cantidad: 'N/A' };
-      } else if (producto && producto.nombre) {
-        return { 
-          nombre: producto.nombre, 
-          cantidad: producto.cantidad || 'N/A' 
-        };
-      } else if (producto && producto.producto) {
-        // Por si la estructura es diferente
-        return { 
-          nombre: producto.producto, 
-          cantidad: producto.cantidad || producto.total || 'N/A' 
-        };
-      } else {
+      }
+      // Si no se reconoce la estructura
+      else {
+        console.warn('❌ Estructura de producto no reconocida:', producto);
         return { nombre: `Producto ${index + 1}`, cantidad: 'N/A' };
       }
     });
   };
 
-  // ✅ FUNCIÓN PARA FORMATEAR TIPOS DE PAGO
+  // ✅ FUNCIÓN PARA FORMATEAR TIPOS DE PAGO - CORREGIDA
   const getTiposPagoFormateados = () => {
     if (!reporteData || !reporteData.tipo_pago_mas_usado || !Array.isArray(reporteData.tipo_pago_mas_usado)) {
       return [];
     }
     
+    console.log('🔍 Estructura REAL de tipo_pago_mas_usado:', reporteData.tipo_pago_mas_usado);
+    
     return reporteData.tipo_pago_mas_usado.map((tipoPago, index) => {
-      if (typeof tipoPago === 'string') {
+      console.log(`🔍 Tipo Pago ${index}:`, tipoPago);
+      
+      // Según la documentación del backend, la estructura es:
+      // { "tipo_pago": "Efectivo", "total": 45.00 }
+      if (tipoPago && typeof tipoPago === 'object') {
+        const tipo = tipoPago.tipo_pago || tipoPago.tipo || tipoPago.metodo_pago || `Tipo ${index + 1}`;
+        const total = tipoPago.total || tipoPago.cantidad || 'N/A';
+        
+        return { tipo, total };
+      }
+      // Si es un string simple
+      else if (typeof tipoPago === 'string') {
         return { tipo: tipoPago, total: 'N/A' };
-      } else if (tipoPago && tipoPago.tipo) {
-        return { 
-          tipo: tipoPago.tipo, 
-          total: tipoPago.total || 'N/A' 
-        };
-      } else if (tipoPago && tipoPago.metodo_pago) {
-        // Por si la estructura es diferente
-        return { 
-          tipo: tipoPago.metodo_pago, 
-          total: tipoPago.total || tipoPago.cantidad || 'N/A' 
-        };
-      } else {
+      }
+      // Si no se reconoce la estructura
+      else {
+        console.warn('❌ Estructura de tipo pago no reconocida:', tipoPago);
         return { tipo: `Tipo ${index + 1}`, total: 'N/A' };
       }
     });

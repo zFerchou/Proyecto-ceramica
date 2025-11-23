@@ -3,6 +3,29 @@ import api from '../api/api';
 import CategoriesModal from './CategoriesModal';
 import Marco from "../images/Marco.png";
 
+// Modal de confirmación de producto creado
+function SuccessModal({ onClose }) {
+  return (
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
+        <div style={styles.successContent}>
+          <div style={styles.successIcon}>✅</div>
+          <h2 style={styles.successTitle}>¡Producto Creado!</h2>
+          <p style={styles.successMessage}>
+            El producto se ha registrado exitosamente en el sistema.
+          </p>
+          <button
+            style={styles.successButton}
+            onClick={onClose}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RegisterProductModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     nombre: '',
@@ -17,6 +40,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
   const [categorias, setCategorias] = useState([]);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Cargar categorías del backend
   const loadCategorias = async () => {
@@ -68,6 +92,9 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
       if (!res.ok) {
         setError(body || { error: 'Error desconocido' });
       } else {
+        // Mostrar modal de éxito
+        setShowSuccessModal(true);
+        // Llamar al callback de éxito
         onSuccess(body);
       }
     } catch (err) {
@@ -85,137 +112,149 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     }));
   };
 
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    onClose(); // Cerrar también el modal principal
+  };
+
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <h2 style={styles.title}>🧾 Registrar producto</h2>
+    <>
+      <div style={styles.overlay}>
+        <div style={styles.modal}>
+          <h2 style={styles.title}>🧾 Registrar producto</h2>
 
-        {error && <div style={styles.errorBox}>{JSON.stringify(error)}</div>}
+          {error && <div style={styles.errorBox}>{JSON.stringify(error)}</div>}
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>
-            Nombre:
-            <input
-              style={styles.input}
-              name="nombre"
-              value={form.nombre}
-              onChange={handleChange}
-              placeholder="Ej. jarron"
-              required
-            />
-          </label>
-
-          <label style={styles.label}>
-            Descripción:
-            <textarea
-              style={{...styles.input, minHeight: '80px'}}
-              name="descripcion"
-              value={form.descripcion}
-              onChange={handleChange}
-              placeholder="Detalles del producto"
-            />
-          </label>
-
-          <div style={styles.row}>
+          <form onSubmit={handleSubmit} style={styles.form}>
             <label style={styles.label}>
-              Cantidad:
+              Nombre:
               <input
                 style={styles.input}
-                name="cantidad"
-                type="number"
-                value={form.cantidad}
+                name="nombre"
+                value={form.nombre}
                 onChange={handleChange}
-                min="0"
+                placeholder="Ej. jarron"
                 required
               />
             </label>
 
             <label style={styles.label}>
-              Precio:
-              <input
-                style={styles.input}
-                name="precio"
-                type="number"
-                step="0.01"
-                value={form.precio}
+              Descripción:
+              <textarea
+                style={{...styles.input, minHeight: '80px'}}
+                name="descripcion"
+                value={form.descripcion}
                 onChange={handleChange}
-                min="0"
-                required
+                placeholder="Detalles del producto"
               />
             </label>
-          </div>
 
-          <label style={styles.label}>
-            Categoría:
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <select
+            <div style={styles.row}>
+              <label style={styles.label}>
+                Cantidad:
+                <input
+                  style={styles.input}
+                  name="cantidad"
+                  type="number"
+                  value={form.cantidad}
+                  onChange={handleChange}
+                  min="0"
+                  required
+                />
+              </label>
+
+              <label style={styles.label}>
+                Precio:
+                <input
+                  style={styles.input}
+                  name="precio"
+                  type="number"
+                  step="0.01"
+                  value={form.precio}
+                  onChange={handleChange}
+                  min="0"
+                  required
+                />
+              </label>
+            </div>
+
+            <label style={styles.label}>
+              Categoría:
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <select
+                  style={styles.input}
+                  name="id_categoria"
+                  value={form.id_categoria}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar categoría</option>
+                  {categorias.map((cat) => (
+                    <option key={cat.id_categoria} value={cat.id_categoria}>
+                      {cat.nombre}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  style={styles.buttonSecondary}
+                  onClick={() => setShowCategoriesModal(true)}
+                >
+                  📁 Gestionar
+                </button>
+              </div>
+              {selectedCategory && (
+                <div style={{ fontSize: '0.8rem', color: '#5a432c', marginTop: '0.3rem' }}>
+                  Seleccionada: <strong>{selectedCategory.nombre}</strong>
+                  {selectedCategory.descripcion && ` - ${selectedCategory.descripcion}`}
+                </div>
+              )}
+            </label>
+
+            <label style={styles.label}>
+              Imagen del producto:
+              <input
                 style={styles.input}
-                name="id_categoria"
-                value={form.id_categoria}
-                onChange={handleChange}
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+            </label>
+
+            <div style={styles.buttonGroup}>
+              <button
+                type="submit"
+                style={{ ...styles.buttonPrimary, opacity: loading ? 0.7 : 1 }}
+                disabled={loading}
               >
-                <option value="">Seleccionar categoría</option>
-                {categorias.map((cat) => (
-                  <option key={cat.id_categoria} value={cat.id_categoria}>
-                    {cat.nombre}
-                  </option>
-                ))}
-              </select>
+                {loading ? 'Guardando...' : '💾 Guardar'}
+              </button>
               <button
                 type="button"
-                style={styles.buttonSecondary}
-                onClick={() => setShowCategoriesModal(true)}
+                style={styles.buttonCancel}
+                onClick={onClose}
               >
-                📁 Gestionar
+                ✖ Cancelar
               </button>
             </div>
-            {selectedCategory && (
-              <div style={{ fontSize: '0.8rem', color: '#5a432c', marginTop: '0.3rem' }}>
-                Seleccionada: <strong>{selectedCategory.nombre}</strong>
-                {selectedCategory.descripcion && ` - ${selectedCategory.descripcion}`}
-              </div>
-            )}
-          </label>
+          </form>
 
-          <label style={styles.label}>
-            Imagen del producto:
-            <input
-              style={styles.input}
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+          {/* Modal de categorías */}
+          {showCategoriesModal && (
+            <CategoriesModal
+              isOpen={showCategoriesModal}
+              onClose={() => setShowCategoriesModal(false)}
+              onCategorySelect={handleCategorySelect}
+              selectedCategory={selectedCategory}
             />
-          </label>
-
-          <div style={styles.buttonGroup}>
-            <button
-              type="submit"
-              style={{ ...styles.buttonPrimary, opacity: loading ? 0.7 : 1 }}
-              disabled={loading}
-            >
-              {loading ? 'Guardando...' : '💾 Guardar'}
-            </button>
-            <button
-              type="button"
-              style={styles.buttonCancel}
-              onClick={onClose}
-            >
-              ✖ Cancelar
-            </button>
-          </div>
-        </form>
-
-        {/* Modal de categorías */}
-        {showCategoriesModal && (
-          <CategoriesModal
-            isOpen={showCategoriesModal}
-            onClose={() => setShowCategoriesModal(false)}
-            onCategorySelect={handleCategorySelect}
-            selectedCategory={selectedCategory}
-          />
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Modal de éxito */}
+      {showSuccessModal && (
+        <SuccessModal onClose={handleSuccessClose} />
+      )}
+    </>
   );
 }
 
@@ -233,8 +272,6 @@ const styles = {
     alignItems: 'center',
     zIndex: 1000,
   },
-  //Modificar este
-
   modal: {
     backgroundColor: '#f5f1e3',
     color: '#4b3621',
@@ -326,5 +363,37 @@ const styles = {
     borderRadius: '6px',
     marginBottom: '1rem',
     fontSize: '0.9rem',
+  },
+  // Estilos para el modal de éxito
+  successContent: {
+    textAlign: 'center',
+    padding: '2rem',
+  },
+  successIcon: {
+    fontSize: '4rem',
+    marginBottom: '1rem',
+  },
+  successTitle: {
+    fontSize: '1.8rem',
+    color: '#2d5016',
+    marginBottom: '1rem',
+    fontWeight: '600',
+  },
+  successMessage: {
+    fontSize: '1.1rem',
+    color: '#5a432c',
+    marginBottom: '2rem',
+    lineHeight: '1.5',
+  },
+  successButton: {
+    backgroundColor: '#a67c52',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 2rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '500',
+    transition: 'background 0.3s ease',
   },
 };

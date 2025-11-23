@@ -7,6 +7,8 @@ export default function NewSaleModal({ onClose, onCreated }) {
   const [lines, setLines] = useState([{ codigo_barras: '', cantidad: 1 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [ventaRegistrada, setVentaRegistrada] = useState(null);
 
   function updateLine(idx, field, value) {
     const next = [...lines];
@@ -47,12 +49,21 @@ export default function NewSaleModal({ onClose, onCreated }) {
         setError(res.error || JSON.stringify(res));
         return;
       }
-      onCreated && onCreated(res);
-      onClose && onClose();
+      
+      // Mostrar modal de confirmación
+      setVentaRegistrada(res);
+      setShowConfirmation(true);
+      
     } catch (err) {
       setLoading(false);
       setError(err.message);
     }
+  }
+
+  function handleCloseConfirmation() {
+    setShowConfirmation(false);
+    onCreated && onCreated(ventaRegistrada);
+    onClose && onClose();
   }
 
   return (
@@ -122,6 +133,35 @@ export default function NewSaleModal({ onClose, onCreated }) {
             </button>
           </div>
         </form>
+
+        {/* Modal de Confirmación de Venta */}
+        {showConfirmation && (
+          <div style={styles.confirmationOverlay}>
+            <div style={styles.confirmationModal}>
+              <div style={styles.confirmationContent}>
+                <div style={styles.confirmationIcon}>✅</div>
+                <h3 style={styles.confirmationTitle}>¡Venta Registrada Exitosamente!</h3>
+                
+                <div style={styles.confirmationDetails}>
+                  <p><strong>ID de Venta:</strong> {ventaRegistrada?.id || 'N/A'}</p>
+                  <p><strong>Total:</strong> ${ventaRegistrada?.total?.toFixed(2) || '0.00'}</p>
+                  <p><strong>Productos:</strong> {ventaRegistrada?.productos?.length || 0}</p>
+                  <p><strong>Tipo de Pago:</strong> {tipoPago}</p>
+                  <p><strong>Fecha:</strong> {new Date().toLocaleString()}</p>
+                </div>
+
+                <div style={styles.confirmationButtons}>
+                  <button 
+                    onClick={handleCloseConfirmation}
+                    style={styles.confirmationButton}
+                  >
+                    ✅ Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -153,9 +193,10 @@ const styles = {
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
     backgroundImage: `url(${Marco})`,
-    backgroundSize: '100% 100%', // hace que el marco se ajuste exactamente al contorno
+    backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'center'
+    backgroundPosition: 'center',
+    position: 'relative',
   },
   title: {
     textAlign: 'center',
@@ -252,4 +293,80 @@ const styles = {
     marginBottom: '1rem',
     fontSize: '0.9rem',
   },
+  // Estilos para el modal de confirmación
+  confirmationOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75, 54, 33, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  confirmationModal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    padding: '2rem',
+    width: '400px',
+    maxWidth: '90vw',
+    boxShadow: '0 8px 25px rgba(0,0,0,0.4)',
+    fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+  },
+  confirmationContent: {
+    textAlign: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  confirmationIcon: {
+    fontSize: '3rem',
+    marginBottom: '0.5rem',
+  },
+  confirmationTitle: {
+    fontSize: '1.4rem',
+    color: '#3e2c1c',
+    margin: 0,
+  },
+  confirmationDetails: {
+    backgroundColor: 'rgba(166, 124, 82, 0.1)',
+    padding: '1rem',
+    borderRadius: '8px',
+    textAlign: 'left',
+    fontSize: '0.95rem',
+  },
+  confirmationButtons: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: '1rem',
+  },
+  confirmationButton: {
+    backgroundColor: '#a67c52',
+    color: 'white',
+    border: 'none',
+    padding: '0.7rem 2rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600',
+    transition: 'background 0.3s ease',
+  },
 };
+
+// Animación fadeIn
+const styleSheet = document.styleSheets[0];
+const keyframes = `
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+`;
+styleSheet.insertRule(keyframes, styleSheet.cssRules.length);

@@ -210,7 +210,7 @@ const modalStyles = {
     alignItems: 'center',
     zIndex: 1000,
   },
-modal: {
+  modal: {
     backgroundColor: '#f5f1e3',
     color: '#4b3621',
     borderRadius: '14px',
@@ -220,8 +220,9 @@ modal: {
     overflowY: 'auto',
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
     fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
     backgroundImage: `url(${Marco})`,
-    backgroundSize: '100% 100%', // ajusta el marco exactamente al tamaño del modal
+    backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center'
   },
@@ -352,5 +353,38 @@ modal: {
     padding: '1rem',
   }
 };
+
+// Añadir la animación al documento si no existe
+if (typeof document !== 'undefined') {
+  const styleSheet = document.styleSheets[0];
+  const keyframes = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  `;
+  
+  // Verificar si la animación ya existe antes de insertarla
+  let animationExists = false;
+  try {
+    for (let i = 0; i < styleSheet.cssRules.length; i++) {
+      if (styleSheet.cssRules[i].name === 'fadeIn') {
+        animationExists = true;
+        break;
+      }
+    }
+  } catch (e) {
+    // Si hay error de CORS, asumimos que no existe y la insertamos
+    animationExists = false;
+  }
+  
+  if (!animationExists) {
+    try {
+      styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
+    } catch (e) {
+      console.log('No se pudo insertar la animación fadeIn:', e);
+    }
+  }
+}
 
 export default CategoriesModal;
