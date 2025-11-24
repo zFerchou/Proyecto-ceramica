@@ -3,29 +3,6 @@ import api from '../api/api';
 import CategoriesModal from './CategoriesModal';
 import Marco from "../images/Marco.png";
 
-// Modal de confirmación de producto creado
-function SuccessModal({ onClose }) {
-  return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.successContent}>
-          <div style={styles.successIcon}>✅</div>
-          <h2 style={styles.successTitle}>¡Producto Creado!</h2>
-          <p style={styles.successMessage}>
-            El producto se ha registrado exitosamente en el sistema.
-          </p>
-          <button
-            style={styles.successButton}
-            onClick={onClose}
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function RegisterProductModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     nombre: '',
@@ -40,7 +17,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
   const [categorias, setCategorias] = useState([]);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  // ELIMINADO: [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Cargar categorías del backend
   const loadCategorias = async () => {
@@ -92,10 +69,12 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
       if (!res.ok) {
         setError(body || { error: 'Error desconocido' });
       } else {
-        // Mostrar modal de éxito
-        setShowSuccessModal(true);
-        // Llamar al callback de éxito
+        // ELIMINADO: No mostrar modal de éxito aquí
+        // setShowSuccessModal(true);
+        
+        // SOLO llamar al callback de éxito y cerrar el modal
         onSuccess(body);
+        onClose(); // Cerrar el modal de registro
       }
     } catch (err) {
       setError({ error: err.message });
@@ -112,10 +91,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     }));
   };
 
-  const handleSuccessClose = () => {
-    setShowSuccessModal(false);
-    onClose(); // Cerrar también el modal principal
-  };
+  // ELIMINADO: handleSuccessClose ya no es necesario
 
   return (
     <>
@@ -250,15 +226,12 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
         </div>
       </div>
 
-      {/* Modal de éxito */}
-      {showSuccessModal && (
-        <SuccessModal onClose={handleSuccessClose} />
-      )}
+      {/* ELIMINADO: Modal de éxito - ahora lo maneja el InventoryPage */}
     </>
   );
 }
 
-// 🎨 Estilos café-caqui
+// 🎨 Estilos café-caqui (sin cambios en los estilos)
 const styles = {
   overlay: {
     position: 'fixed',
@@ -284,7 +257,7 @@ const styles = {
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
     backgroundImage: `url(${Marco})`,
-    backgroundSize: '100% 100%', // ajusta el marco exactamente al contorno
+    backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center'
   },
@@ -363,37 +336,5 @@ const styles = {
     borderRadius: '6px',
     marginBottom: '1rem',
     fontSize: '0.9rem',
-  },
-  // Estilos para el modal de éxito
-  successContent: {
-    textAlign: 'center',
-    padding: '2rem',
-  },
-  successIcon: {
-    fontSize: '4rem',
-    marginBottom: '1rem',
-  },
-  successTitle: {
-    fontSize: '1.8rem',
-    color: '#2d5016',
-    marginBottom: '1rem',
-    fontWeight: '600',
-  },
-  successMessage: {
-    fontSize: '1.1rem',
-    color: '#5a432c',
-    marginBottom: '2rem',
-    lineHeight: '1.5',
-  },
-  successButton: {
-    backgroundColor: '#a67c52',
-    color: 'white',
-    border: 'none',
-    padding: '0.8rem 2rem',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '500',
-    transition: 'background 0.3s ease',
   },
 };

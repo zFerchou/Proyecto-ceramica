@@ -9,6 +9,8 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoriaToDelete, setCategoriaToDelete] = useState(null);
 
   // Cargar categorías
   const loadCategorias = async () => {
@@ -57,13 +59,17 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
     }
   };
 
-  const handleDeleteCategoria = async (categoria) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar la categoría "${categoria.nombre}"?`)) {
-      return;
-    }
+  // Esta función reemplaza completamente a handleDeleteCategoria
+  const handleDeleteClick = (categoria) => {
+    setCategoriaToDelete(categoria);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!categoriaToDelete) return;
 
     try {
-      const res = await api.deleteCategoria(categoria.id_categoria);
+      const res = await api.deleteCategoria(categoriaToDelete.id_categoria);
       if (res.ok) {
         setMessage('✅ Categoría eliminada exitosamente');
         loadCategorias();
@@ -73,7 +79,15 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
       }
     } catch (err) {
       setError('Error de conexión al eliminar categoría');
+    } finally {
+      setShowDeleteModal(false);
+      setCategoriaToDelete(null);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setCategoriaToDelete(null);
   };
 
   const handleCategorySelect = (categoria) => {
@@ -174,7 +188,10 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
                 </div>
                 <button
                   style={modalStyles.deleteButton}
-                  onClick={() => handleDeleteCategoria(categoria)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evita que se active el click de selección
+                    handleDeleteClick(categoria);
+                  }}
                   title="Eliminar categoría"
                 >
                   🗑️
@@ -193,6 +210,49 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
           </button>
         </div>
       </div>
+
+      {/* Modal de confirmación para eliminar */}
+      {showDeleteModal && (
+        <div style={modalStyles.confirmOverlay}>
+          <div style={modalStyles.confirmModal}>
+            <h2 style={modalStyles.confirmTitle}>🗑️ Eliminar Categoría</h2>
+
+            <div style={modalStyles.confirmContent}>
+              <p style={modalStyles.confirmText}>
+                ¿Estás seguro de que deseas eliminar la categoría?
+              </p>
+              <div style={modalStyles.categoryInfo}>
+                <strong style={modalStyles.categoryNameConfirm}>
+                  "{categoriaToDelete?.nombre}"
+                </strong>
+                {categoriaToDelete?.descripcion && (
+                  <p style={modalStyles.categoryDescConfirm}>
+                    {categoriaToDelete.descripcion}
+                  </p>
+                )}
+              </div>
+              <p style={modalStyles.warningText}>
+                ⚠️ Esta acción no se puede deshacer
+              </p>
+            </div>
+
+            <div style={modalStyles.confirmButtonGroup}>
+              <button 
+                style={modalStyles.confirmDeleteButton}
+                onClick={handleConfirmDelete}
+              >
+                ✅ Aceptar
+              </button>
+              <button 
+                style={modalStyles.buttonCancel}
+                onClick={handleCancelDelete}
+              >
+                ✖ Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -210,6 +270,18 @@ const modalStyles = {
     alignItems: 'center',
     zIndex: 1000,
   },
+  confirmOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75, 54, 33, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1001, // Mayor z-index para que aparezca encima
+  },
   modal: {
     backgroundColor: '#f5f1e3',
     color: '#4b3621',
@@ -226,11 +298,68 @@ const modalStyles = {
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center'
   },
+  confirmModal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    padding: '2rem',
+    width: '400px',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+    fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    zIndex: 1002,
+  },
   title: {
     textAlign: 'center',
     fontSize: '1.6rem',
     marginBottom: '1.2rem',
     color: '#3e2c1c',
+  },
+  confirmTitle: {
+    textAlign: 'center',
+    fontSize: '1.6rem',
+    marginBottom: '1.2rem',
+    color: '#b26a55',
+  },
+  confirmContent: {
+    marginBottom: '1.5rem',
+  },
+  confirmText: {
+    fontSize: '1rem',
+    marginBottom: '1rem',
+    lineHeight: '1.5',
+    textAlign: 'center',
+  },
+  categoryInfo: {
+    backgroundColor: '#fff8ef',
+    border: '1px solid #d2b48c',
+    borderRadius: '8px',
+    padding: '1rem',
+    marginBottom: '1rem',
+    textAlign: 'center',
+  },
+  categoryNameConfirm: {
+    fontSize: '1.1rem',
+    color: '#3e2c1c',
+    display: 'block',
+    marginBottom: '0.5rem',
+  },
+  categoryDescConfirm: {
+    fontSize: '0.9rem',
+    color: '#6b4f3b',
+    margin: 0,
+    fontStyle: 'italic',
+  },
+  warningText: {
+    fontSize: '0.9rem',
+    color: '#b26a55',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    margin: 0,
   },
   subtitle: {
     fontSize: '1.1rem',
@@ -265,6 +394,13 @@ const modalStyles = {
     display: 'flex',
     gap: '0.8rem',
     marginTop: '1rem',
+    justifyContent: 'center',
+  },
+  confirmButtonGroup: {
+    display: 'flex',
+    gap: '0.8rem',
+    marginTop: '1rem',
+    justifyContent: 'center',
   },
   buttonPrimary: {
     backgroundColor: '#a67c52',
@@ -285,6 +421,17 @@ const modalStyles = {
     cursor: 'pointer',
     fontSize: '0.9rem',
     transition: 'all 0.3s ease',
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#b26a55',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    transition: 'all 0.3s ease',
+    fontWeight: 'bold',
   },
   errorBox: {
     backgroundColor: '#fce8e6',
@@ -364,7 +511,6 @@ if (typeof document !== 'undefined') {
   }
   `;
   
-  // Verificar si la animación ya existe antes de insertarla
   let animationExists = false;
   try {
     for (let i = 0; i < styleSheet.cssRules.length; i++) {
@@ -374,7 +520,6 @@ if (typeof document !== 'undefined') {
       }
     }
   } catch (e) {
-    // Si hay error de CORS, asumimos que no existe y la insertamos
     animationExists = false;
   }
   

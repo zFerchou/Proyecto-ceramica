@@ -64,23 +64,35 @@ export default function SalesPage() {
   const [undoSuccess, setUndoSuccess] = useState({ open: false, mensaje: '' });
 
   // --- Buscar ventas
+  // Lógica de búsqueda: si query coincide con patrón EAN-13 (13 dígitos) buscar por codigo_venta; si no, por nombre
   const buscar = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      // Filtrar por compra (código de venta) en lugar de nombre de producto
-      const params = query ? { codigo_venta: query } : undefined;
+      let params;
+      const trimmed = query.trim();
+      if (trimmed) {
+        const esCodigoVenta = /^\d{8,14}$/.test(trimmed); // permitir entre 8 y 14 dígitos (flexible por si cambia)
+        if (esCodigoVenta) {
+          // Intentar primero coincidencia exacta por codigo_venta
+          params = { codigo_venta: trimmed };
+        } else {
+          // Búsqueda por nombre parcial
+          params = { nombre: trimmed };
+        }
+      }
       const res = await getVentas(params);
       setLoading(false);
       if (res.error) return setError(res.error);
-      
-      // DEBUG: Verificar la estructura de datos que retorna la API
-      console.log('Datos de ventas recibidos:', res);
-      if (res.length > 0) {
-        console.log('Estructura de la primera venta:', res[0]);
-        console.log('Tipo de pago de la primera venta:', res[0].tipo_pago);
+
+      // Si buscamos por codigo_venta y no hay resultados, intentar buscar por nombre como fallback
+      if (params && params.codigo_venta && Array.isArray(res) && res.length === 0) {
+        const fallback = await getVentas({ nombre: trimmed });
+        if (!fallback.error) {
+          setVentas(fallback);
+          return;
+        }
       }
-      
       setVentas(res);
     } catch (err) {
       setLoading(false);
@@ -234,9 +246,10 @@ export default function SalesPage() {
       <div style={styles.searchBox}>
         <input
           style={styles.input}
-          placeholder="Buscar por código de venta"
+          placeholder="Buscar por nombre de producto o código de venta"
           value={query}
           onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
         />
         <button onClick={buscar} disabled={loading} style={styles.buttonSecondary}>
           {loading ? 'Buscando...' : '🔍 Buscar'}
