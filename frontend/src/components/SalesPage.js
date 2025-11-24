@@ -68,10 +68,19 @@ export default function SalesPage() {
     setError(null);
     setLoading(true);
     try {
-      const params = query ? { nombre: query } : undefined;
+      // Filtrar por compra (código de venta) en lugar de nombre de producto
+      const params = query ? { codigo_venta: query } : undefined;
       const res = await getVentas(params);
       setLoading(false);
       if (res.error) return setError(res.error);
+      
+      // DEBUG: Verificar la estructura de datos que retorna la API
+      console.log('Datos de ventas recibidos:', res);
+      if (res.length > 0) {
+        console.log('Estructura de la primera venta:', res[0]);
+        console.log('Tipo de pago de la primera venta:', res[0].tipo_pago);
+      }
+      
       setVentas(res);
     } catch (err) {
       setLoading(false);
@@ -158,11 +167,51 @@ export default function SalesPage() {
     return 0;
   };
 
+  // Obtener tipo de pago de diferentes propiedades posibles
+  const getTipoPago = (venta) => {
+    const posiblesPropiedadesPago = [
+      'tipo_pago',
+      'metodo_pago',
+      'payment_method',
+      'tipo_pago_venta',
+      'payment_type'
+    ];
+    
+    for (const prop of posiblesPropiedadesPago) {
+      if (venta[prop] !== undefined && venta[prop] !== null) {
+        return venta[prop];
+      }
+    }
+    
+    return 'No especificado';
+  };
+
   // Calcular subtotal por producto
   const calculateSubtotal = (producto) => {
     const precio = getPrecioUnitario(producto);
     const cantidad = producto.cantidad || 0;
     return precio * cantidad;
+  };
+
+  // Agrupar productos duplicados por ID o nombre
+  const agruparProductos = (productos) => {
+    if (!productos || !Array.isArray(productos)) return [];
+    
+    const productosAgrupados = {};
+    
+    productos.forEach(producto => {
+      const clave = producto.id_producto || producto.nombre_producto || JSON.stringify(producto);
+      
+      if (productosAgrupados[clave]) {
+        // Si el producto ya existe, sumar la cantidad
+        productosAgrupados[clave].cantidad += producto.cantidad || 0;
+      } else {
+        // Si es un producto nuevo, agregarlo
+        productosAgrupados[clave] = { ...producto };
+      }
+    });
+    
+    return Object.values(productosAgrupados);
   };
 
   return (
@@ -185,7 +234,7 @@ export default function SalesPage() {
       <div style={styles.searchBox}>
         <input
           style={styles.input}
-          placeholder="Buscar por nombre de producto o código de ticket"
+          placeholder="Buscar por código de venta"
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
@@ -204,6 +253,8 @@ export default function SalesPage() {
 
       {ventas.map(venta => {
         const totalVenta = getTotalVenta(venta);
+        const productosAgrupados = agruparProductos(venta.productos);
+        const tipoPago = getTipoPago(venta);
         
         return (
           <div key={venta.codigo_venta} style={styles.card}>
@@ -211,7 +262,7 @@ export default function SalesPage() {
               <h3 style={styles.cardTitle}>🧮 Venta #{venta.codigo_venta}</h3>
               <div style={styles.ventaInfo}>
                 <div><strong>Fecha:</strong> {new Date(venta.fecha).toLocaleString()}</div>
-                <div><strong>Tipo de pago:</strong> {venta.tipo_pago}</div>
+                <div><strong>Tipo de pago:</strong> {tipoPago}</div>
                 <div><strong>Total:</strong> {formatPrice(totalVenta)}</div>
               </div>
             </div>
@@ -219,7 +270,7 @@ export default function SalesPage() {
             <div style={styles.productsSection}>
               <h4 style={styles.productsTitle}>🛒 Productos Vendidos</h4>
               <div style={styles.productsGrid}>
-                {venta.productos && venta.productos.map((producto, idx) => {
+                {productosAgrupados.map((producto, idx) => {
                   const precioUnitario = getPrecioUnitario(producto);
                   const subtotal = calculateSubtotal(producto);
                   
@@ -278,7 +329,7 @@ export default function SalesPage() {
                 <span>Subtotal productos:</span>
                 <strong>
                   {formatPrice(
-                    venta.productos?.reduce((sum, producto) => sum + calculateSubtotal(producto), 0) || 0
+                    productosAgrupados.reduce((sum, producto) => sum + calculateSubtotal(producto), 0) || 0
                   )}
                 </strong>
               </div>
@@ -308,8 +359,14 @@ export default function SalesPage() {
       {openNew && (
         <NewSaleModal
           onClose={() => setOpenNew(false)}
-          onCreated={res => {
-            setVentas(prev => [res, ...prev]);
+          onCreated={(ventaData) => {
+            // Asegurarse de que la nueva venta tenga el tipo de pago
+            if (ventaData && !ventaData.tipo_pago) {
+              // Si no viene con tipo_pago, forzar una recarga para obtener todos los datos
+              buscar();
+            } else {
+              setVentas(prev => [ventaData, ...prev]);
+            }
             setOpenNew(false);
           }}
         />
@@ -341,7 +398,7 @@ export default function SalesPage() {
   );
 }
 
-// 🎨 Estilos café caqui
+// 🎨 Estilos café caqui (sin cambios)
 const styles = {
   container: {
     backgroundColor: '#f5f1e3',

@@ -1,32 +1,150 @@
 import React, { useState } from 'react';
-import { postVenta } from '../api/api';
+import { postVenta, getProductos } from '../api/api';
 import Marco from "../images/Marco.png";
 
 export default function NewSaleModal({ onClose, onCreated }) {
   const [tipoPago, setTipoPago] = useState('Efectivo');
-  const [lines, setLines] = useState([{ codigo_barras: '', cantidad: 1 }]);
+  const [lines, setLines] = useState([{ codigo_barras: '', cantidad: 1, stock: 0, nombre: '', precio: 0 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [ventaRegistrada, setVentaRegistrada] = useState(null);
+  const [productosVendidos, setProductosVendidos] = useState([]);
+  const [productos, setProductos] = useState([]);
+
+  // Cargar productos al abrir el modal
+  React.useEffect(() => {
+    const cargarProductos = async () => {
+      try {
+        const res = await getProductos();
+        const data = await res.json();
+        console.log('Productos cargados:', data); // DEBUG
+        if (Array.isArray(data)) {
+          setProductos(data);
+        }
+      } catch (err) {
+        console.error('Error al cargar productos:', err);
+      }
+    };
+    cargarProductos();
+  }, []);
+
+  // Función para convertir cualquier valor a número
+  const toNumber = (value) => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+    const num = parseFloat(value);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Buscar producto por código de barras
+  const buscarProducto = (codigo_barras) => {
+    if (!codigo_barras) return null;
+    
+    const productoEncontrado = productos.find(p => {
+      console.log('Buscando:', codigo_barras, 'en producto:', p.codigo_barras, 'stock:', p.stock); // DEBUG
+      return (
+        p.codigo_barras === codigo_barras || 
+        p.codigo_barras?.toString() === codigo_barras.toString()
+      );
+    });
+    
+    console.log('Producto encontrado:', productoEncontrado); // DEBUG
+    return productoEncontrado;
+  };
+
+  // Obtener stock del producto de diferentes propiedades posibles
+  const getStockProducto = (producto) => {
+    if (!producto) return 0;
+    
+    const posiblesPropiedadesStock = [
+      'stock',
+      'cantidad_stock', 
+      'inventario',
+      'cantidad',
+      'cantidad_disponible',
+      'stock_disponible'
+    ];
+    
+    for (const prop of posiblesPropiedadesStock) {
+      if (producto[prop] !== undefined && producto[prop] !== null) {
+        const stock = toNumber(producto[prop]);
+        console.log(`Stock encontrado en propiedad ${prop}:`, stock); // DEBUG
+        return stock;
+      }
+    }
+    
+    console.log('No se encontró stock en ninguna propiedad'); // DEBUG
+    return 0;
+  };
 
   function updateLine(idx, field, value) {
     const next = [...lines];
-    next[idx] = { ...next[idx], [field]: value };
+    
+    if (field === 'codigo_barras') {
+      const producto = buscarProducto(value);
+      if (producto) {
+        // Producto encontrado, actualizar información
+        const stock = getStockProducto(producto);
+        console.log(`Stock para producto ${producto.nombre}:`, stock); // DEBUG
+        
+        next[idx] = { 
+          ...next[idx], 
+          codigo_barras: value,
+          stock: stock,
+          nombre: producto.nombre || producto.nombre_producto || 'Producto encontrado',
+          precio: toNumber(producto.precio || producto.precio_venta || producto.precio_unitario || 0)
+        };
+      } else {
+        // Producto no encontrado, limpiar información
+        next[idx] = { 
+          ...next[idx], 
+          codigo_barras: value,
+          stock: 0,
+          nombre: value ? 'Producto no encontrado' : '',
+          precio: 0
+        };
+      }
+    } else if (field === 'cantidad') {
+      const cantidad = parseInt(value) || 0;
+      next[idx] = { ...next[idx], [field]: cantidad };
+      
+      // Validar stock en tiempo real
+      if (cantidad > next[idx].stock && next[idx].stock > 0) {
+        setError(`⚠️ Stock insuficiente para "${next[idx].nombre}". Stock disponible: ${next[idx].stock}`);
+      } else {
+        setError(null);
+      }
+    } else {
+      next[idx] = { ...next[idx], [field]: value };
+    }
+    
     setLines(next);
   }
 
   function addLine() {
-    setLines([...lines, { codigo_barras: '', cantidad: 1 }]);
+    setLines([...lines, { codigo_barras: '', cantidad: 1, stock: 0, nombre: '', precio: 0 }]);
   }
 
   function removeLine(i) {
     setLines(lines.filter((_, idx) => idx !== i));
   }
 
+  // Validar stock antes de enviar
+  const validarStock = () => {
+    for (const line of lines) {
+      if (line.codigo_barras && line.cantidad > line.stock) {
+        return `Stock insuficiente para "${line.nombre}". Stock disponible: ${line.stock}, Cantidad solicitada: ${line.cantidad}`;
+      }
+    }
+    return null;
+  };
+
   async function submit(e) {
     e.preventDefault();
     setError(null);
+    
+    // Validar campos requeridos
     const productos = lines.map(l => ({
       codigo_barras: String(l.codigo_barras || '').trim(),
       cantidad: Number(l.cantidad),
@@ -40,6 +158,13 @@ export default function NewSaleModal({ onClose, onCreated }) {
       return;
     }
 
+    // Validar stock
+    const errorStock = validarStock();
+    if (errorStock) {
+      setError(errorStock);
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = { productos, tipo_pago: tipoPago };
@@ -49,6 +174,9 @@ export default function NewSaleModal({ onClose, onCreated }) {
         setError(res.error || JSON.stringify(res));
         return;
       }
+      
+      // Guardar los productos que se enviaron para mostrarlos en el modal
+      setProductosVendidos(lines.filter(line => line.codigo_barras));
       
       // Mostrar modal de confirmación
       setVentaRegistrada(res);
@@ -65,6 +193,21 @@ export default function NewSaleModal({ onClose, onCreated }) {
     onCreated && onCreated(ventaRegistrada);
     onClose && onClose();
   }
+
+  // Función para obtener el nombre del producto (si está disponible en la respuesta)
+  const getNombreProducto = (producto, index) => {
+    if (producto.nombre_producto) return producto.nombre_producto;
+    if (producto.nombre) return producto.nombre;
+    return `Producto ${index + 1}`;
+  };
+
+  // Función para obtener el precio unitario (si está disponible en la respuesta)
+  const getPrecioUnitario = (producto) => {
+    if (producto.precio_unitario !== undefined) return toNumber(producto.precio_unitario);
+    if (producto.precio !== undefined) return toNumber(producto.precio);
+    if (producto.precio_venta !== undefined) return toNumber(producto.precio_venta);
+    return 0;
+  };
 
   return (
     <div style={styles.overlay}>
@@ -87,25 +230,77 @@ export default function NewSaleModal({ onClose, onCreated }) {
           </label>
 
           <div style={styles.lineContainer}>
+            <div style={styles.lineHeader}>
+              <span style={styles.headerText}>Código de Barras</span>
+              <span style={styles.headerText}>Cantidad</span>
+              <span style={styles.headerText}>Stock</span>
+              <span style={styles.headerText}>Acciones</span>
+            </div>
+            
             {lines.map((line, idx) => (
               <div key={idx} style={styles.lineRow}>
-                <input
-                  placeholder="Código de barras"
-                  value={line.codigo_barras}
-                  onChange={e => updateLine(idx, 'codigo_barras', e.target.value)}
-                  style={styles.input}
-                />
-                <input
-                  type="number"
-                  min={1}
-                  value={line.cantidad}
-                  onChange={e => updateLine(idx, 'cantidad', e.target.value)}
-                  style={{ ...styles.input, width: '80px' }}
-                />
+                <div style={styles.inputGroup}>
+                  <input
+                    placeholder="Código de barras"
+                    value={line.codigo_barras}
+                    onChange={e => updateLine(idx, 'codigo_barras', e.target.value)}
+                    style={styles.input}
+                  />
+                  {line.nombre && line.nombre !== 'Producto no encontrado' && (
+                    <div style={styles.productInfo}>
+                      <span style={styles.productName}>{line.nombre}</span>
+                      <span style={styles.productPrice}>
+                        ${toNumber(line.precio).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                <div style={styles.quantityGroup}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={line.stock > 0 ? line.stock : undefined}
+                    value={line.cantidad}
+                    onChange={e => updateLine(idx, 'cantidad', e.target.value)}
+                    style={{
+                      ...styles.input,
+                      width: '80px',
+                      borderColor: line.stock > 0 && line.cantidad > line.stock ? '#b26a55' : '#c2a878'
+                    }}
+                  />
+                  {line.stock > 0 && (
+                    <div style={styles.stockInfo}>
+                      <span style={
+                        line.cantidad > line.stock ? styles.stockError : styles.stockOk
+                      }>
+                        Máx: {line.stock}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                <div style={styles.stockDisplay}>
+                  {line.stock > 0 ? (
+                    <span style={
+                      line.cantidad > line.stock ? styles.stockError : styles.stockOk
+                    }>
+                      {line.stock}
+                    </span>
+                  ) : line.codigo_barras ? (
+                    <span style={styles.stockError} title="Producto no encontrado o sin stock">
+                      ❌
+                    </span>
+                  ) : (
+                    <span style={styles.stockNeutral}>-</span>
+                  )}
+                </div>
+                
                 <button
                   type="button"
                   onClick={() => removeLine(idx)}
                   style={styles.removeButton}
+                  disabled={lines.length === 1}
                 >
                   ✖
                 </button>
@@ -143,11 +338,63 @@ export default function NewSaleModal({ onClose, onCreated }) {
                 <h3 style={styles.confirmationTitle}>¡Venta Registrada Exitosamente!</h3>
                 
                 <div style={styles.confirmationDetails}>
-                  <p><strong>ID de Venta:</strong> {ventaRegistrada?.id || 'N/A'}</p>
-                  <p><strong>Total:</strong> ${ventaRegistrada?.total?.toFixed(2) || '0.00'}</p>
-                  <p><strong>Productos:</strong> {ventaRegistrada?.productos?.length || 0}</p>
-                  <p><strong>Tipo de Pago:</strong> {tipoPago}</p>
-                  <p><strong>Fecha:</strong> {new Date().toLocaleString()}</p>
+                  <div style={styles.detailRow}>
+                    <strong>ID de Venta:</strong> 
+                    <span>{ventaRegistrada?.codigo_venta || ventaRegistrada?.id || 'N/A'}</span>
+                  </div>
+                  <div style={styles.detailRow}>
+                    <strong>Total:</strong> 
+                    <span>${toNumber(ventaRegistrada?.total).toFixed(2)}</span>
+                  </div>
+                  <div style={styles.detailRow}>
+                    <strong>Productos:</strong> 
+                    <span>{ventaRegistrada?.productos?.length || productosVendidos.length || 0}</span>
+                  </div>
+                  <div style={styles.detailRow}>
+                    <strong>Tipo de Pago:</strong> 
+                    <span>{tipoPago}</span>
+                  </div>
+                  <div style={styles.detailRow}>
+                    <strong>Fecha:</strong> 
+                    <span>{new Date().toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Sección de productos vendidos */}
+                <div style={styles.productsSection}>
+                  <h4 style={styles.productsTitle}>Productos Vendidos:</h4>
+                  <div style={styles.productsList}>
+                    {/* Mostrar productos de la respuesta de la API si están disponibles */}
+                    {ventaRegistrada?.productos?.map((producto, index) => (
+                      <div key={index} style={styles.productItem}>
+                        <span style={styles.productName}>
+                          {getNombreProducto(producto, index)}
+                        </span>
+                        <span style={styles.productQuantity}>
+                          Cantidad: {producto.cantidad}
+                        </span>
+                        <span style={styles.productPrice}>
+                          ${(getPrecioUnitario(producto) * (producto.cantidad || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    
+                    {/* Si no hay productos en la respuesta, mostrar los que se enviaron */}
+                    {(!ventaRegistrada?.productos || ventaRegistrada.productos.length === 0) && 
+                     productosVendidos.map((producto, index) => (
+                      <div key={index} style={styles.productItem}>
+                        <span style={styles.productName}>
+                          {producto.nombre || `Producto ${index + 1}`}
+                        </span>
+                        <span style={styles.productQuantity}>
+                          Cantidad: {producto.cantidad}
+                        </span>
+                        <span style={styles.productPrice}>
+                          ${(toNumber(producto.precio) * (producto.cantidad || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div style={styles.confirmationButtons}>
@@ -167,7 +414,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
   );
 }
 
-// 🎨 Estilos café-caqui coherentes con RegisterProductModal
+// 🎨 Estilos (sin cambios)
 const styles = {
   overlay: {
     position: 'fixed',
@@ -186,7 +433,7 @@ const styles = {
     color: '#4b3621',
     borderRadius: '14px',
     padding: '2rem',
-    width: '500px',
+    width: '600px',
     maxHeight: '85vh',
     overflowY: 'auto',
     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
@@ -238,10 +485,70 @@ const styles = {
     gap: '0.5rem',
     marginTop: '0.6rem',
   },
-  lineRow: {
-    display: 'flex',
-    alignItems: 'center',
+  lineHeader: {
+    display: 'grid',
+    gridTemplateColumns: '2fr 1fr 0.5fr 0.5fr',
     gap: '0.6rem',
+    padding: '0.5rem',
+    backgroundColor: 'rgba(166, 124, 82, 0.1)',
+    borderRadius: '6px',
+    fontWeight: '600',
+    fontSize: '0.9rem',
+  },
+  headerText: {
+    textAlign: 'center',
+  },
+  lineRow: {
+    display: 'grid',
+    gridTemplateColumns: '2fr 1fr 0.5fr 0.5fr',
+    gap: '0.6rem',
+    alignItems: 'start',
+  },
+  inputGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.3rem',
+  },
+  productInfo: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '0.8rem',
+    padding: '0.2rem 0.5rem',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderRadius: '4px',
+  },
+  productName: {
+    fontWeight: '500',
+    color: '#3e2c1c',
+  },
+  productPrice: {
+    fontWeight: 'bold',
+    color: '#2c5aa0',
+  },
+  quantityGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.3rem',
+  },
+  stockInfo: {
+    fontSize: '0.7rem',
+    textAlign: 'center',
+  },
+  stockDisplay: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    fontSize: '0.9rem',
+    fontWeight: '600',
+  },
+  stockOk: {
+    color: '#2d5016',
+  },
+  stockError: {
+    color: '#b26a55',
+  },
+  stockNeutral: {
+    color: '#6b4f3b',
   },
   addButton: {
     marginTop: '0.6rem',
@@ -260,6 +567,7 @@ const styles = {
     borderRadius: '6px',
     cursor: 'pointer',
     padding: '0.4rem 0.6rem',
+    opacity: 1,
   },
   buttonGroup: {
     display: 'flex',
@@ -311,8 +619,10 @@ const styles = {
     color: '#4b3621',
     borderRadius: '14px',
     padding: '2rem',
-    width: '400px',
+    width: '500px',
     maxWidth: '90vw',
+    maxHeight: '80vh',
+    overflowY: 'auto',
     boxShadow: '0 8px 25px rgba(0,0,0,0.4)',
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
@@ -343,6 +653,58 @@ const styles = {
     textAlign: 'left',
     fontSize: '0.95rem',
   },
+  detailRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '0.5rem',
+    paddingBottom: '0.3rem',
+    borderBottom: '1px solid rgba(139, 107, 74, 0.2)',
+  },
+  productsSection: {
+    marginTop: '1rem',
+    paddingTop: '1rem',
+    borderTop: '2px solid #d2b48c',
+  },
+  productsTitle: {
+    fontSize: '1.1rem',
+    marginBottom: '0.8rem',
+    color: '#4b3621',
+    textAlign: 'center',
+  },
+  productsList: {
+    maxHeight: '200px',
+    overflowY: 'auto',
+    backgroundColor: 'rgba(255, 253, 248, 0.5)',
+    borderRadius: '6px',
+    padding: '0.5rem',
+  },
+  productItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0.5rem',
+    marginBottom: '0.5rem',
+    backgroundColor: '#fff8ef',
+    borderRadius: '6px',
+    border: '1px solid #e8dfd0',
+    fontSize: '0.9rem',
+  },
+  productName: {
+    flex: 2,
+    fontWeight: '500',
+    textAlign: 'left',
+  },
+  productQuantity: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#6b4f3b',
+  },
+  productPrice: {
+    flex: 1,
+    textAlign: 'right',
+    fontWeight: 'bold',
+    color: '#2c5aa0',
+  },
   confirmationButtons: {
     display: 'flex',
     justifyContent: 'center',
@@ -369,4 +731,8 @@ const keyframes = `
   to { opacity: 1; transform: scale(1); }
 }
 `;
-styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
+try {
+  styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
+} catch (e) {
+  console.log('Error inserting keyframes:', e);
+}
