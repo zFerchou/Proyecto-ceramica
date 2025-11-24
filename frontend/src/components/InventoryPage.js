@@ -456,19 +456,12 @@ export default function InventoryPage({ onClose }) {
     load();
   };
 
-  // Función para imprimir etiquetas CORREGIDA
+  // Función para imprimir etiquetas (solo nombre, código de barras y precio) optimizada para más etiquetas por página
   const handlePrintLabels = (producto) => {
     const quantity = parseInt(labelQuantities[producto.id_producto]) || 1;
-    
-    // Validar que la cantidad esté entre 1 y 100
-    const validQuantity = Math.max(1, Math.min(100, quantity));
-    
-    // Crear una ventana de impresión
+    const validQuantity = Math.max(1, Math.min(300, quantity)); // Permitimos hasta 300 pequeñas etiquetas
+
     const printWindow = window.open('', '_blank');
-    
-    // Obtener la URL del QR si existe
-    const qrUrl = producto.codigo_qr ? `${API_BASE}/api/productos/qr/${producto.codigo_qr}` : null;
-    
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -476,165 +469,91 @@ export default function InventoryPage({ onClose }) {
         <title>Etiquetas - ${producto.nombre}</title>
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
+          /* Página optimizada para alta densidad */
+          @page { margin: 6mm; }
           body { 
             font-family: Arial, sans-serif; 
             margin: 0; 
-            padding: 20px;
+            padding: 4mm;
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-            background: white;
+            gap: 4mm;
+            background: #fff;
+            justify-content: flex-start;
           }
           .label {
-            width: 300px;
-            height: 200px;
-            border: 1px solid #000;
-            padding: 15px;
-            margin: 5px;
-            text-align: center;
-            page-break-inside: avoid;
+            width: 48mm; /* Tamaño cercano a etiqueta de rollo estándar */
+            height: 30mm;
+            border: 0.3mm solid #000;
+            padding: 2mm 2mm 1mm 2mm;
             box-sizing: border-box;
             display: flex;
-            flexDirection: column;
+            flex-direction: column;
             justify-content: space-between;
+            page-break-inside: avoid;
+            overflow: hidden;
           }
           .product-name {
             font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 5px;
+            font-size: 9pt;
+            line-height: 1.1;
             text-transform: uppercase;
+            max-height: 2.2em;
+            overflow: hidden;
           }
-          .barcode-container {
-            margin: 5px 0;
-            display: flex;
-            justify-content: center;
-          }
-          .barcode {
-            max-width: 100%;
-            height: 40px;
-          }
-          .qr-container {
-            margin: 5px 0;
-            display: flex;
-            justify-content: center;
-          }
-          .qr-image {
-            width: 80px;
-            height: 80px;
-          }
+          .barcode-container { flex: 1; display: flex; align-items: center; justify-content: center; }
+          .barcode { width: 100%; height: 16mm; }
           .price {
-            font-size: 18px;
-            font-weight: bold,
-            color: #2c5aa0;
-            margin: 5px 0;
+            font-size: 10pt;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 2px;
           }
-          .description {
-            font-size: 12px;
-            color: #666;
-            margin: 5px 0;
-          }
-          .code-text {
-            font-size: 10px;
-            color: #333;
-            margin: 2px 0;
-          }
-          @media print {
-            body { 
-              margin: 0; 
-              padding: 10px;
-              background: white !important;
-            }
-            .label { 
-              border: 1px solid #000;
-              break-inside: avoid;
-            }
-          }
+          .code-text { font-size: 7pt; text-align: center; margin-top: 1px; letter-spacing: 0.5px; }
+          @media print { body { padding: 2mm; } .label { border: 0.2mm solid #000; } }
         </style>
       </head>
       <body>
     `);
 
-    // Generar las etiquetas
     for (let i = 0; i < validQuantity; i++) {
       printWindow.document.write(`
         <div class="label">
-          <div>
-            <div class="product-name">${producto.nombre}</div>
-            ${producto.precio ? `<div class="price">$${parseFloat(producto.precio).toFixed(2)}</div>` : ''}
-            ${producto.descripcion ? `<div class="description">${producto.descripcion}</div>` : ''}
+          <div class="product-name">${producto.nombre}</div>
+          <div class="barcode-container">
+            <svg class="barcode"></svg>
           </div>
-          
-          <div>
-            ${producto.codigo_barras ? `
-              <div class="barcode-container">
-                <svg class="barcode" id="barcode-${i}"></svg>
-              </div>
-              <div class="code-text">Código: ${producto.codigo_barras}</div>
-            ` : ''}
-            
-            ${qrUrl ? `
-              <div class="qr-container">
-                <img src="${qrUrl}" alt="QR Code" class="qr-image" onerror="this.style.display='none'">
-              </div>
-            ` : `
-              <div class="qr-container">
-                <div style="color: #999; font-size: 10px;">QR no disponible</div>
-              </div>
-            `}
-          </div>
+          ${producto.codigo_barras ? `<div class="code-text">${producto.codigo_barras}</div>` : ''}
+          ${producto.precio ? `<div class="price">$${parseFloat(producto.precio).toFixed(2)}</div>` : ''}
         </div>
       `);
     }
 
     printWindow.document.write(`
-        <script>
-          // Generar códigos de barras después de que se cargue la página
-          window.onload = function() {
-            // Generar códigos de barras
-            ${producto.codigo_barras ? `
-              try {
-                JsBarcode('.barcode', '${producto.codigo_barras}', {
-                  format: "EAN13",
-                  width: 2,
-                  height: 40,
-                  displayValue: false,
-                  background: "#ffffff",
-                  lineColor: "#000000"
-                });
-              } catch (error) {
-                console.error('Error generando código de barras:', error);
-                document.querySelectorAll('.barcode').forEach(bc => {
-                  bc.innerHTML = '<text x="50%" y="50%" text-anchor="middle">${producto.codigo_barras}</text>';
-                });
-              }
-            ` : ''}
-            
-            // Esperar a que las imágenes QR se carguen
-            setTimeout(function() {
-              window.print();
-              // Cerrar después de imprimir
-              setTimeout(function() {
-                window.close();
-              }, 500);
-            }, 1000);
-          }
-          
-          // Manejar errores de carga de imágenes QR
-          document.addEventListener('error', function(e) {
-            if (e.target.tagName === 'IMG' && e.target.className === 'qr-image') {
-              e.target.style.display = 'none';
-              const container = e.target.parentElement;
-              container.innerHTML = '<div style="color: #999; font-size: 10px;">QR no disponible</div>';
+      <script>
+        window.onload = function() {
+          try {
+            if ('${producto.codigo_barras}') {
+              JsBarcode('.barcode', '${producto.codigo_barras}', {
+                format: 'EAN13',
+                width: 1,
+                height: 50,
+                displayValue: false,
+                margin: 0,
+                background: '#ffffff',
+                lineColor: '#000'
+              });
             }
-          }, true);
-        </script>
-      </body>
-      </html>
+          } catch (e) {
+            console.error('Error generando código de barras', e);
+          }
+          setTimeout(() => { window.print(); setTimeout(() => window.close(), 300); }, 300);
+        };
+      </script>
+      </body></html>
     `);
     printWindow.document.close();
-    
-    setMessage(`🖨️ Imprimiendo ${validQuantity} etiquetas para ${producto.nombre}`);
+    setMessage(`🖨️ Imprimiendo ${validQuantity} etiquetas optimizadas para ${producto.nombre}`);
     closeActionsModal();
   };
 

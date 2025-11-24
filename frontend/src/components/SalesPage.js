@@ -64,14 +64,35 @@ export default function SalesPage() {
   const [undoSuccess, setUndoSuccess] = useState({ open: false, mensaje: '' });
 
   // --- Buscar ventas
+  // Lógica de búsqueda: si query coincide con patrón EAN-13 (13 dígitos) buscar por codigo_venta; si no, por nombre
   const buscar = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const params = query ? { nombre: query } : undefined;
+      let params;
+      const trimmed = query.trim();
+      if (trimmed) {
+        const esCodigoVenta = /^\d{8,14}$/.test(trimmed); // permitir entre 8 y 14 dígitos (flexible por si cambia)
+        if (esCodigoVenta) {
+          // Intentar primero coincidencia exacta por codigo_venta
+          params = { codigo_venta: trimmed };
+        } else {
+          // Búsqueda por nombre parcial
+          params = { nombre: trimmed };
+        }
+      }
       const res = await getVentas(params);
       setLoading(false);
       if (res.error) return setError(res.error);
+
+      // Si buscamos por codigo_venta y no hay resultados, intentar buscar por nombre como fallback
+      if (params && params.codigo_venta && Array.isArray(res) && res.length === 0) {
+        const fallback = await getVentas({ nombre: trimmed });
+        if (!fallback.error) {
+          setVentas(fallback);
+          return;
+        }
+      }
       setVentas(res);
     } catch (err) {
       setLoading(false);
@@ -185,9 +206,10 @@ export default function SalesPage() {
       <div style={styles.searchBox}>
         <input
           style={styles.input}
-          placeholder="Buscar por nombre de producto o código de ticket"
+          placeholder="Buscar por nombre de producto o código de venta"
           value={query}
           onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
         />
         <button onClick={buscar} disabled={loading} style={styles.buttonSecondary}>
           {loading ? 'Buscando...' : '🔍 Buscar'}
