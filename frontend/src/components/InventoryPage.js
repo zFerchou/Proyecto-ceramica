@@ -4,8 +4,6 @@ import Barcode from "react-barcode";
 import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
 import ConfirmModal from "./ConfirmModal";
-import ProductQRModal from "./ProductQRModal";
-import QRImage from "./QRImage";
 import api, { API_BASE } from "../api/api";
 import CategoriesModal from "./CategoriesModal";
 import Marco from "../images/Marco.png";
@@ -366,7 +364,6 @@ export default function InventoryPage({ onClose }) {
   const [message, setMessage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [lastRegisteredProduct, setLastRegisteredProduct] = useState(null);
-  const [qrModalProduct, setQrModalProduct] = useState(null);
   
   // Estados para los nuevos modales
   const [actionsModalProduct, setActionsModalProduct] = useState(null);
@@ -457,16 +454,6 @@ export default function InventoryPage({ onClose }) {
     setShowUpdateStock(false);
     setShowEditSuccessModal(true); // Reutilizamos el modal de edición para stock
     load();
-  };
-
-  // Abrir modal al hacer click en QR
-  const handleQrClick = (producto) => {
-    setQrModalProduct(producto);
-  };
-
-  // Cerrar modal QR
-  const closeQrModal = () => {
-    setQrModalProduct(null);
   };
 
   // Funciones para el modal de acciones
@@ -716,7 +703,6 @@ export default function InventoryPage({ onClose }) {
             <th style={styles.th}>Cantidad</th>
             <th style={styles.th}>Precio</th>
             <th style={styles.th}>Código de barras</th>
-            <th style={styles.th}>QR</th>
             <th style={styles.th}>Acciones</th>
           </tr>
         </thead>
@@ -762,11 +748,6 @@ export default function InventoryPage({ onClose }) {
                   )}
                 </td>
                 <td style={styles.td}>
-                  <div style={{ display: "inline-block", background: "#fff", padding: 6, borderRadius: 6 }} onClick={() => handleQrClick(p)}>
-                    <QRImage value={JSON.stringify({ id_producto: p.id_producto, nombre: p.nombre })} size={100} />
-                  </div>
-                </td>
-                <td style={styles.td}>
                   <div style={styles.labelActions}>
                     <div style={styles.quantityInputContainer}>
                       <label style={styles.quantityLabel}>Etiquetas:</label>
@@ -792,7 +773,7 @@ export default function InventoryPage({ onClose }) {
             ))
           ) : (
             <tr>
-              <td colSpan="8" style={styles.noData}>
+              <td colSpan="7" style={styles.noData}>
                 No se encontraron productos.
               </td>
             </tr>
@@ -831,14 +812,6 @@ export default function InventoryPage({ onClose }) {
           onConfirm={handleConfirmRegister}
           onCancel={handleConfirmUpdateStock}
           onClose={handleCancelConfirm}
-        />
-      )}
-
-      {/* Modal QR */}
-      {qrModalProduct && (
-        <ProductQRModal
-          producto={qrModalProduct}
-          onClose={closeQrModal}
         />
       )}
 

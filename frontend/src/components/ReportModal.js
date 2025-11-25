@@ -7,19 +7,31 @@ export default function ReportModal({ isOpen, onClose }) {
   const [fechaFin, setFechaFin] = useState('');
   const [reporteData, setReporteData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationData, setNotificationData] = useState({ type: '', message: '' });
+
+  // Mostrar notificación en modal
+  const showNotification = (type, message) => {
+    setNotificationData({ type, message });
+    setShowNotificationModal(true);
+  };
+
+  // Cerrar modal de notificación
+  const closeNotification = () => {
+    setShowNotificationModal(false);
+    setNotificationData({ type: '', message: '' });
+  };
 
   if (!isOpen) return null;
 
   async function generarReporte(e) {
     e.preventDefault();
     if (!fechaInicio || !fechaFin) {
-      setError('Selecciona ambas fechas.');
+      showNotification('error', 'Selecciona ambas fechas.');
       return;
     }
 
     setLoading(true);
-    setError(null);
     setReporteData(null);
 
     try {
@@ -31,7 +43,7 @@ export default function ReportModal({ isOpen, onClose }) {
       
       // ✅ VERIFICACIÓN COMPLETA DE LA RESPUESTA
       if (res && res.error) {
-        setError(`Error del servidor: ${res.error}`);
+        showNotification('error', `Error del servidor: ${res.error}`);
         return;
       }
       
@@ -41,16 +53,18 @@ export default function ReportModal({ isOpen, onClose }) {
         // Mostrar mensaje si no hay datos
         if ((!res.total_vendido || res.total_vendido === 0 || res.total_vendido === '0.00') && 
             (!res.productos_mas_vendidos || res.productos_mas_vendidos.length === 0)) {
-          setError('No se encontraron ventas en el rango de fechas seleccionado');
+          showNotification('info', 'No se encontraron ventas en el rango de fechas seleccionado');
+        } else {
+          showNotification('success', 'Reporte generado exitosamente');
         }
       } else {
         console.warn('❌ Respuesta inesperada:', res);
-        setError('Formato de respuesta inesperado del servidor');
+        showNotification('error', 'Formato de respuesta inesperado del servidor');
       }
       
     } catch (err) {
       console.error('❌ Error en generarReporte:', err);
-      setError(`Error de conexión: ${err.message}`);
+      showNotification('error', `Error de conexión: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -71,7 +85,7 @@ export default function ReportModal({ isOpen, onClose }) {
 
   function descargarCSV() {
     if (!reporteData) {
-      setError('No hay datos para descargar');
+      showNotification('error', 'No hay datos para descargar');
       return;
     }
 
@@ -123,6 +137,8 @@ export default function ReportModal({ isOpen, onClose }) {
     a.download = `reporte_ventas_${fechaInicio}_a_${fechaFin}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    
+    showNotification('success', 'CSV descargado exitosamente');
   }
 
   // ✅ FUNCIÓN PARA FORMATEAR PRODUCTOS MÁS VENDIDOS - CORREGIDA
@@ -202,8 +218,6 @@ export default function ReportModal({ isOpen, onClose }) {
     <div style={styles.overlay}>
       <div style={styles.modal}>
         <h2 style={styles.title}>📄 Generar Reporte</h2>
-
-        {error && <div style={styles.errorBox}>{error}</div>}
 
         <form onSubmit={generarReporte} style={styles.form}>
           <label style={styles.label}>
@@ -285,20 +299,46 @@ export default function ReportModal({ isOpen, onClose }) {
         )}
 
         {/* Mensaje cuando no hay datos pero la respuesta fue exitosa */}
-        {reporteData && !tieneDatos && !error && (
+        {reporteData && !tieneDatos && (
           <div style={{ marginTop: '1rem', textAlign: 'center', color: '#666' }}>
             No se encontraron ventas en el período seleccionado
           </div>
         )}
-
-        {/* Debug info - remover en producción */}
-        
       </div>
+
+      {/* Modal de notificaciones */}
+      {showNotificationModal && (
+        <div style={styles.notificationOverlay}>
+          <div style={styles.notificationModal}>
+            <div style={{
+              ...styles.notificationHeader,
+              backgroundColor: notificationData.type === 'success' ? '#4caf50' : 
+                              notificationData.type === 'info' ? '#2196f3' : '#f44336'
+            }}>
+              {notificationData.type === 'success' ? '✅ Éxito' : 
+               notificationData.type === 'info' ? 'ℹ️ Información' : '❌ Error'}
+            </div>
+            
+            <div style={styles.notificationContent}>
+              <p style={styles.notificationText}>{notificationData.message}</p>
+            </div>
+
+            <div style={styles.notificationButtons}>
+              <button 
+                style={styles.buttonPrimary}
+                onClick={closeNotification}
+              >
+                ✅ Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// 🎨 Estilos (mantener los mismos)
+// 🎨 Estilos actualizados
 const styles = {
   overlay: {
     position: 'fixed',
@@ -311,6 +351,18 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
+  },
+  notificationOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75, 54, 33, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1001,
   },
   modal: {
     backgroundColor: '#f5f1e3',
@@ -327,6 +379,42 @@ const styles = {
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center'
+  },
+  notificationModal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    width: '400px',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+    fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    overflow: 'hidden',
+  },
+  notificationHeader: {
+    padding: '1rem',
+    color: 'white',
+    textAlign: 'center',
+    fontSize: '1.2rem',
+    fontWeight: 'bold',
+  },
+  notificationContent: {
+    padding: '1.5rem',
+  },
+  notificationText: {
+    fontSize: '1rem',
+    marginBottom: '1rem',
+    lineHeight: '1.5',
+    textAlign: 'center',
+  },
+  notificationButtons: {
+    padding: '1rem',
+    display: 'flex',
+    justifyContent: 'center',
+    borderTop: '1px solid #d2b48c',
   },
   title: {
     textAlign: 'center',
@@ -376,13 +464,37 @@ const styles = {
     cursor: 'pointer',
     transition: 'background 0.3s ease',
   },
-  errorBox: {
-    backgroundColor: '#fce8e6',
-    color: '#7a3e2f',
-    borderLeft: '5px solid #b26a55',
-    padding: '0.7rem',
-    borderRadius: '6px',
-    marginBottom: '1rem',
-    fontSize: '0.9rem',
-  },
 };
+
+// Añadir la animación al documento si no existe
+if (typeof document !== 'undefined') {
+  const styleSheet = document.styleSheets[0];
+  const keyframes = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  `;
+  
+  let animationExists = false;
+  try {
+    for (let i = 0; i < styleSheet.cssRules.length; i++) {
+      if (styleSheet.cssRules[i].name === 'fadeIn') {
+        animationExists = true;
+        break;
+      }
+    }
+  } catch (e) {
+    animationExists = false;
+  }
+  
+  if (!animationExists) {
+    try {
+      styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
+    } catch (e) {
+      console.log('No se pudo insertar la animación fadeIn:', e);
+    }
+  }
+}
+
+
