@@ -11,6 +11,20 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
   const [message, setMessage] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoriaToDelete, setCategoriaToDelete] = useState(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationData, setNotificationData] = useState({ type: '', message: '', categoriaProducto: null });
+
+  // Mostrar notificación en modal
+  const showNotification = (type, message, categoriaProducto = null) => {
+    setNotificationData({ type, message, categoriaProducto });
+    setShowNotificationModal(true);
+  };
+
+  // Cerrar modal de notificación
+  const closeNotification = () => {
+    setShowNotificationModal(false);
+    setNotificationData({ type: '', message: '', categoriaProducto: null });
+  };
 
   // Cargar categorías
   const loadCategorias = async () => {
@@ -20,10 +34,10 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
         const data = await res.json();
         setCategorias(data);
       } else {
-        setError('Error al cargar categorías');
+        showNotification('error', 'Error al cargar categorías');
       }
     } catch (err) {
-      setError('Error de conexión al cargar categorías');
+      showNotification('error', 'Error de conexión al cargar categorías');
     }
   };
 
@@ -44,23 +58,57 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
       const res = await api.postCategoria(formData);
       if (res.ok) {
         const result = await res.json();
-        setMessage('✅ Categoría creada exitosamente');
+        showNotification('success', '✅ Categoría creada exitosamente');
         setFormData({ nombre: '', descripcion: '' });
         setShowAddForm(false);
         loadCategorias();
       } else {
         const errorData = await res.json().catch(() => ({ error: 'Error al crear categoría' }));
-        setError(errorData.error || 'Error al crear categoría');
+        showNotification('error', errorData.error || 'Error al crear categoría');
       }
     } catch (err) {
-      setError('Error de conexión al crear categoría');
+      showNotification('error', 'Error de conexión al crear categoría');
     } finally {
       setLoading(false);
     }
   };
 
-  // Esta función reemplaza completamente a handleDeleteCategoria
-  const handleDeleteClick = (categoria) => {
+  // Verificar si una categoría tiene productos asociados
+  const checkCategoriaHasProducts = async (idCategoria) => {
+    try {
+      const res = await api.getProductos();
+      if (res.ok) {
+        const productos = await res.json();
+        const productosEnCategoria = productos.filter(producto => 
+          producto.id_categoria === idCategoria
+        );
+        return productosEnCategoria.length > 0 ? productosEnCategoria : null;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error al verificar productos:', err);
+      return null;
+    }
+  };
+
+  const handleDeleteClick = async (categoria) => {
+    // Verificar si la categoría tiene productos antes de eliminar
+    const productosAsociados = await checkCategoriaHasProducts(categoria.id_categoria);
+    
+    if (productosAsociados && productosAsociados.length > 0) {
+      // Mostrar modal de notificación con información de productos
+      showNotification(
+        'warning', 
+        `No se puede eliminar la categoría "${categoria.nombre}" porque tiene productos asociados.`,
+        {
+          categoria: categoria,
+          productos: productosAsociados
+        }
+      );
+      return;
+    }
+
+    // Si no tiene productos, proceder con la eliminación
     setCategoriaToDelete(categoria);
     setShowDeleteModal(true);
   };
@@ -71,14 +119,14 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
     try {
       const res = await api.deleteCategoria(categoriaToDelete.id_categoria);
       if (res.ok) {
-        setMessage('✅ Categoría eliminada exitosamente');
+        showNotification('success', '✅ Categoría eliminada exitosamente');
         loadCategorias();
       } else {
         const errorData = await res.json().catch(() => ({ error: 'Error al eliminar categoría' }));
-        setError(errorData.error || 'Error al eliminar categoría');
+        showNotification('error', errorData.error || 'Error al eliminar categoría');
       }
     } catch (err) {
-      setError('Error de conexión al eliminar categoría');
+      showNotification('error', 'Error de conexión al eliminar categoría');
     } finally {
       setShowDeleteModal(false);
       setCategoriaToDelete(null);
@@ -103,9 +151,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
     <div style={modalStyles.overlay}>
       <div style={modalStyles.modal}>
         <h2 style={modalStyles.title}>📁 Gestión de Categorías</h2>
-
-        {message && <div style={modalStyles.message}>{message}</div>}
-        {error && <div style={modalStyles.errorBox}>{error}</div>}
 
         {/* Botón para agregar nueva categoría */}
         {!showAddForm && (
@@ -189,7 +234,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
                 <button
                   style={modalStyles.deleteButton}
                   onClick={(e) => {
-                    e.stopPropagation(); // Evita que se active el click de selección
+                    e.stopPropagation();
                     handleDeleteClick(categoria);
                   }}
                   title="Eliminar categoría"
@@ -253,6 +298,59 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
           </div>
         </div>
       )}
+
+      {/* Modal de notificaciones */}
+      {showNotificationModal && (
+        <div style={modalStyles.notificationOverlay}>
+          <div style={modalStyles.notificationModal}>
+            <div style={{
+              ...modalStyles.notificationHeader,
+              backgroundColor: notificationData.type === 'success' ? '#4caf50' : 
+                              notificationData.type === 'warning' ? '#ff9800' : '#f44336'
+            }}>
+              {notificationData.type === 'success' ? '✅ Éxito' : 
+               notificationData.type === 'warning' ? '⚠️ Advertencia' : '❌ Error'}
+            </div>
+            
+            <div style={modalStyles.notificationContent}>
+              <p style={modalStyles.notificationText}>{notificationData.message}</p>
+              
+              {/* Mostrar información de productos si la categoría tiene productos */}
+              {notificationData.categoriaProducto && (
+                <div style={modalStyles.productosInfo}>
+                  <h4 style={modalStyles.productosTitle}>
+                    Productos en esta categoría:
+                  </h4>
+                  <div style={modalStyles.productosList}>
+                    {notificationData.categoriaProducto.productos.map((producto, index) => (
+                      <div key={index} style={modalStyles.productoItem}>
+                        <strong>• {producto.nombre}</strong>
+                        {producto.descripcion && (
+                          <span style={modalStyles.productoDesc}>
+                            - {producto.descripcion}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p style={modalStyles.productosCount}>
+                    Total: {notificationData.categoriaProducto.productos.length} producto(s)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div style={modalStyles.notificationButtons}>
+              <button 
+                style={modalStyles.buttonPrimary}
+                onClick={closeNotification}
+              >
+                ✅ Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -280,7 +378,19 @@ const modalStyles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1001, // Mayor z-index para que aparezca encima
+    zIndex: 1001,
+  },
+  notificationOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75, 54, 33, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1002,
   },
   modal: {
     backgroundColor: '#f5f1e3',
@@ -311,8 +421,80 @@ const modalStyles = {
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
-    zIndex: 1002,
   },
+  notificationModal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    width: '450px',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+    fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    overflow: 'hidden',
+  },
+  notificationHeader: {
+    padding: '1rem',
+    color: 'white',
+    textAlign: 'center',
+    fontSize: '1.2rem',
+    fontWeight: 'bold',
+  },
+  notificationContent: {
+    padding: '1.5rem',
+  },
+  notificationText: {
+    fontSize: '1rem',
+    marginBottom: '1rem',
+    lineHeight: '1.5',
+    textAlign: 'center',
+  },
+  notificationButtons: {
+    padding: '1rem',
+    display: 'flex',
+    justifyContent: 'center',
+    borderTop: '1px solid #d2b48c',
+  },
+  productosInfo: {
+    backgroundColor: '#fff8ef',
+    border: '1px solid #d2b48c',
+    borderRadius: '8px',
+    padding: '1rem',
+    marginTop: '1rem',
+  },
+  productosTitle: {
+    fontSize: '1rem',
+    color: '#3e2c1c',
+    marginBottom: '0.8rem',
+    textAlign: 'center',
+  },
+  productosList: {
+    maxHeight: '150px',
+    overflowY: 'auto',
+    marginBottom: '0.8rem',
+  },
+  productoItem: {
+    padding: '0.4rem 0',
+    borderBottom: '1px solid #e8dfd0',
+    fontSize: '0.9rem',
+  },
+  productoDesc: {
+    color: '#6b4f3b',
+    fontSize: '0.85rem',
+    marginLeft: '0.5rem',
+    fontStyle: 'italic',
+  },
+  productosCount: {
+    textAlign: 'center',
+    fontSize: '0.9rem',
+    color: '#8b6b4a',
+    fontWeight: 'bold',
+    margin: 0,
+  },
+  // ... (el resto de los estilos se mantienen igual)
   title: {
     textAlign: 'center',
     fontSize: '1.6rem',
@@ -432,24 +614,6 @@ const modalStyles = {
     fontSize: '0.9rem',
     transition: 'all 0.3s ease',
     fontWeight: 'bold',
-  },
-  errorBox: {
-    backgroundColor: '#fce8e6',
-    color: '#7a3e2f',
-    borderLeft: '5px solid #b26a55',
-    padding: '0.7rem',
-    borderRadius: '6px',
-    marginBottom: '1rem',
-    fontSize: '0.9rem',
-  },
-  message: {
-    backgroundColor: '#e0d6c2',
-    borderLeft: '5px solid #8b6b4a',
-    padding: '0.8rem',
-    borderRadius: '6px',
-    marginBottom: '1rem',
-    textAlign: 'center',
-    fontWeight: '500'
   },
   categoriesList: {
     marginTop: '1rem',
