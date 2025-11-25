@@ -4,11 +4,12 @@ import CategoriesModal from './CategoriesModal';
 import Marco from "../images/Marco.png";
 
 export default function RegisterProductModal({ onClose, onSuccess }) {
+  // Permitimos '' para cantidad y precio para que el usuario pueda borrar el 0 inicial fácilmente
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
-    cantidad: 0,
-    precio: 0,
+    cantidad: '',
+    precio: '',
     id_categoria: '',
   });
   const [error, setError] = useState(null);
@@ -38,18 +39,33 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]:
-        name === 'cantidad' || name === 'precio' || name === 'id_categoria'
-          ? Number(value)
-          : value,
-    }));
+    // Para cantidad y precio permitir '' y validar más tarde
+    if (name === 'cantidad' || name === 'precio') {
+      // Si el usuario borra todo, dejamos '' en el estado
+      const numeric = value === '' ? '' : value;
+      setForm(prev => ({ ...prev, [name]: numeric }));
+      return;
+    }
+    if (name === 'id_categoria') {
+      setForm(prev => ({ ...prev, id_categoria: value }));
+      if (value) {
+        const categoria = categorias.find(cat => cat.id_categoria === parseInt(value));
+        setSelectedCategory(categoria || null);
+      } else {
+        setSelectedCategory(null);
+      }
+      return;
+    }
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
 
-    // Actualizar categoría seleccionada cuando cambia el select
-    if (name === 'id_categoria' && value) {
-      const categoria = categorias.find(cat => cat.id_categoria === parseInt(value));
-      setSelectedCategory(categoria || null);
+  // Limpia el 0 inicial al enfocar si está en '0' o '0.00'
+  const handleNumericFocus = (e) => {
+    const { name, value } = e.target;
+    if ((name === 'cantidad' || name === 'precio') && (value === '0' || value === '0.0' || value === '0.00')) {
+      setForm(prev => ({ ...prev, [name]: '' }));
+      // Usar setTimeout para esperar a que React actualice antes de cambiar el valor del input directamente
+      setTimeout(() => { e.target.value = ''; }, 0);
     }
   };
 
@@ -58,6 +74,14 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     setLoading(true);
     setError(null);
     try {
+      // Validaciones básicas antes de construir payload
+      const cantidadValida = form.cantidad !== '' && !isNaN(Number(form.cantidad));
+      const precioValido = form.precio !== '' && !isNaN(Number(form.precio));
+      if (!cantidadValida || !precioValido) {
+        setError({ error: 'Cantidad y precio son obligatorios' });
+        setLoading(false);
+        return;
+      }
       const payload = {
         ...form,
         cantidad: Number.parseInt(form.cantidad, 10),
@@ -134,7 +158,9 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                   type="number"
                   value={form.cantidad}
                   onChange={handleChange}
+                  onFocus={handleNumericFocus}
                   min="0"
+                  placeholder="0"
                   required
                 />
               </label>
@@ -148,7 +174,9 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                   step="0.01"
                   value={form.precio}
                   onChange={handleChange}
+                  onFocus={handleNumericFocus}
                   min="0"
+                  placeholder="0.00"
                   required
                 />
               </label>
