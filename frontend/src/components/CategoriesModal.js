@@ -665,7 +665,7 @@ const modalStyles = {
   }
 };
 
-// Añadir la animación al documento si no existe
+// Añadir la animación al documento si no esta
 if (typeof document !== 'undefined') {
   const styleSheet = document.styleSheets[0];
   const keyframes = `
