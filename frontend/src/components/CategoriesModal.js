@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/api';
 import Marco from "../images/Marco.png";
 
-function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }) {
+function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, refreshTrigger }) {
   const [categorias, setCategorias] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [formData, setFormData] = useState({ nombre: '', descripcion: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -47,7 +49,56 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
       setError(null);
       setMessage(null);
     }
-  }, [isOpen]);
+  }, [isOpen, refreshTrigger]); // Agregado refreshTrigger
+
+  // Iniciar edición de categoría
+  const handleEditClick = (categoria) => {
+    setEditingCategory(categoria);
+    setFormData({
+      nombre: categoria.nombre,
+      descripcion: categoria.descripcion || ''
+    });
+    setShowEditForm(true);
+    setShowAddForm(false);
+  };
+
+  // Cancelar edición
+  const handleCancelEdit = () => {
+    setShowEditForm(false);
+    setEditingCategory(null);
+    setFormData({ nombre: '', descripcion: '' });
+  };
+
+  // Guardar cambios de edición
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await api.putCategoria(editingCategory.id_categoria, formData);
+      if (res.ok) {
+        const result = await res.json();
+        showNotification('success', '✅ Categoría actualizada exitosamente');
+        setFormData({ nombre: '', descripcion: '' });
+        setShowEditForm(false);
+        setEditingCategory(null);
+        loadCategorias();
+        
+        // Notificar al componente padre que las categorías fueron actualizadas
+        if (typeof onCategorySelect === 'function') {
+          onCategorySelect('updated', result.categoria);
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Error al actualizar categoría' }));
+        showNotification('error', errorData.error || 'Error al actualizar categoría');
+      }
+    } catch (err) {
+      showNotification('error', 'Error de conexión al actualizar categoría');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,6 +113,11 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
         setFormData({ nombre: '', descripcion: '' });
         setShowAddForm(false);
         loadCategorias();
+        
+        // Notificar al componente padre que las categorías fueron actualizadas
+        if (typeof onCategorySelect === 'function') {
+          onCategorySelect('created', result.categoria);
+        }
       } else {
         const errorData = await res.json().catch(() => ({ error: 'Error al crear categoría' }));
         showNotification('error', errorData.error || 'Error al crear categoría');
@@ -121,6 +177,11 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
       if (res.ok) {
         showNotification('success', '✅ Categoría eliminada exitosamente');
         loadCategorias();
+        
+        // Notificar al componente padre que las categorías fueron actualizadas
+        if (typeof onCategorySelect === 'function') {
+          onCategorySelect('deleted', categoriaToDelete);
+        }
       } else {
         const errorData = await res.json().catch(() => ({ error: 'Error al eliminar categoría' }));
         showNotification('error', errorData.error || 'Error al eliminar categoría');
@@ -139,8 +200,8 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
   };
 
   const handleCategorySelect = (categoria) => {
-    if (onCategorySelect) {
-      onCategorySelect(categoria);
+    if (onCategorySelect && typeof onCategorySelect === 'function') {
+      onCategorySelect('selected', categoria);
     }
     onClose();
   };
@@ -153,10 +214,14 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
         <h2 style={modalStyles.title}>📁 Gestión de Categorías</h2>
 
         {/* Botón para agregar nueva categoría */}
-        {!showAddForm && (
+        {!showAddForm && !showEditForm && (
           <button
             style={modalStyles.buttonPrimary}
-            onClick={() => setShowAddForm(true)}
+            onClick={() => {
+              setShowAddForm(true);
+              setShowEditForm(false);
+              setEditingCategory(null);
+            }}
           >
             ➕ Nueva Categoría
           </button>
@@ -208,6 +273,49 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
           </form>
         )}
 
+        {/* Formulario para editar categoría */}
+        {showEditForm && (
+          <form onSubmit={handleEditSubmit} style={modalStyles.form}>
+            <h3 style={modalStyles.subtitle}>Editar Categoría</h3>
+            <label style={modalStyles.label}>
+              Nombre:
+              <input
+                type="text"
+                value={formData.nombre}
+                onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+                style={modalStyles.input}
+                required
+                placeholder="Ej: Electrónicos"
+              />
+            </label>
+            <label style={modalStyles.label}>
+              Descripción:
+              <textarea
+                value={formData.descripcion}
+                onChange={(e) => setFormData(prev => ({ ...prev, descripcion: e.target.value }))}
+                style={{...modalStyles.input, minHeight: '80px'}}
+                placeholder="Ej: Productos electrónicos y dispositivos"
+              />
+            </label>
+            <div style={modalStyles.buttonGroup}>
+              <button 
+                type="submit" 
+                style={{...modalStyles.buttonPrimary, opacity: loading ? 0.7 : 1}}
+                disabled={loading}
+              >
+                {loading ? 'Actualizando...' : '💾 Actualizar'}
+              </button>
+              <button 
+                type="button"
+                style={modalStyles.buttonCancel}
+                onClick={handleCancelEdit}
+              >
+                ✖ Cancelar
+              </button>
+            </div>
+          </form>
+        )}
+
         {/* Lista de categorías existentes */}
         <div style={modalStyles.categoriesList}>
           <h3 style={modalStyles.subtitle}>Categorías Existentes</h3>
@@ -231,16 +339,28 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory }
                     <div style={modalStyles.categoryDesc}>{categoria.descripcion}</div>
                   )}
                 </div>
-                <button
-                  style={modalStyles.deleteButton}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(categoria);
-                  }}
-                  title="Eliminar categoría"
-                >
-                  🗑️
-                </button>
+                <div style={modalStyles.categoryActions}>
+                  <button
+                    style={modalStyles.editButton}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditClick(categoria);
+                    }}
+                    title="Editar categoría"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    style={modalStyles.deleteButton}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(categoria);
+                    }}
+                    title="Eliminar categoría"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -494,7 +614,6 @@ const modalStyles = {
     fontWeight: 'bold',
     margin: 0,
   },
-  // ... (el resto de los estilos se mantienen igual)
   title: {
     textAlign: 'center',
     fontSize: '1.6rem',
@@ -632,6 +751,20 @@ const modalStyles = {
   categoryContent: {
     flex: 1,
     cursor: 'pointer',
+  },
+  categoryActions: {
+    display: 'flex',
+    gap: '0.3rem',
+  },
+  editButton: {
+    backgroundColor: '#8b6b4a',
+    color: 'white',
+    border: 'none',
+    padding: '0.4rem 0.6rem',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.8rem',
+    transition: 'all 0.3s ease',
   },
   selectedCategory: {
     backgroundColor: '#e8dfd0',

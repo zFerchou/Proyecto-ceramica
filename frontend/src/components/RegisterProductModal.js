@@ -18,7 +18,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
   const [categorias, setCategorias] = useState([]);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  // ELIMINADO: [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [categoriesRefreshTrigger, setCategoriesRefreshTrigger] = useState(0);
 
   // Cargar categorías del backend
   const loadCategorias = async () => {
@@ -35,7 +35,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
 
   useEffect(() => {
     loadCategorias();
-  }, []);
+  }, [categoriesRefreshTrigger]); // Agregar categoriesRefreshTrigger como dependencia
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -93,9 +93,6 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
       if (!res.ok) {
         setError(body || { error: 'Error desconocido' });
       } else {
-        // ELIMINADO: No mostrar modal de éxito aquí
-        // setShowSuccessModal(true);
-        
         // SOLO llamar al callback de éxito y cerrar el modal
         onSuccess(body);
         onClose(); // Cerrar el modal de registro
@@ -107,15 +104,45 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     }
   };
 
-  const handleCategorySelect = (categoria) => {
-    setSelectedCategory(categoria);
-    setForm(prev => ({
-      ...prev,
-      id_categoria: categoria.id_categoria
-    }));
+  // Manejar selección de categoría y actualizaciones
+  const handleCategoryAction = (action, categoria) => {
+    switch (action) {
+      case 'selected':
+        setSelectedCategory(categoria);
+        setForm(prev => ({
+          ...prev,
+          id_categoria: categoria.id_categoria
+        }));
+        setShowCategoriesModal(false);
+        break;
+      
+      case 'created':
+      case 'updated':
+      case 'deleted':
+        // Forzar recarga de categorías cuando se crean, editan o eliminan
+        setCategoriesRefreshTrigger(prev => prev + 1);
+        
+        // Si se creó una nueva categoría, seleccionarla automáticamente
+        if (action === 'created' && categoria) {
+          setSelectedCategory(categoria);
+          setForm(prev => ({
+            ...prev,
+            id_categoria: categoria.id_categoria
+          }));
+        }
+        
+        // Si se eliminó la categoría seleccionada, limpiar la selección
+        if (action === 'deleted' && selectedCategory && 
+            selectedCategory.id_categoria === categoria.id_categoria) {
+          setSelectedCategory(null);
+          setForm(prev => ({
+            ...prev,
+            id_categoria: ''
+          }));
+        }
+        break;
+    }
   };
-
-  // ELIMINADO: handleSuccessClose ya no es necesario
 
   return (
     <>
@@ -242,19 +269,18 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
             </div>
           </form>
 
-          {/* Modal de categorías */}
+          {/* Modal de categorías - ACTUALIZADO */}
           {showCategoriesModal && (
             <CategoriesModal
               isOpen={showCategoriesModal}
               onClose={() => setShowCategoriesModal(false)}
-              onCategorySelect={handleCategorySelect}
+              onCategorySelect={handleCategoryAction}
               selectedCategory={selectedCategory}
+              refreshTrigger={categoriesRefreshTrigger}
             />
           )}
         </div>
       </div>
-
-      {/* ELIMINADO: Modal de éxito - ahora lo maneja el InventoryPage */}
     </>
   );
 }

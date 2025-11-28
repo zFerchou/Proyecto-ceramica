@@ -377,6 +377,9 @@ export default function InventoryPage({ onClose }) {
   const [showPrintSuccessModal, setShowPrintSuccessModal] = useState(false);
   const [successModalData, setSuccessModalData] = useState({});
 
+  // NUEVO: Estado para actualización de categorías
+  const [categoriesRefreshTrigger, setCategoriesRefreshTrigger] = useState(0);
+
   // Cargar productos del backend
   const load = async () => {
     try {
@@ -650,6 +653,12 @@ export default function InventoryPage({ onClose }) {
     }
   };
 
+  // NUEVO: Manejar actualizaciones de categorías desde el modal
+  const handleCategoriesUpdate = () => {
+    // Forzar recarga de categorías en todos los componentes que las usen
+    setCategoriesRefreshTrigger(prev => prev + 1);
+  };
+
   return (
     <PageBackground>
     <div style={styles.container}>
@@ -815,11 +824,13 @@ export default function InventoryPage({ onClose }) {
         />
       )}
 
-      {/* Modal de Categorías */}
+      {/* Modal de Categorías - ACTUALIZADO */}
       {showCategoriesModal && (
         <CategoriesModal
           isOpen={showCategoriesModal}
           onClose={() => setShowCategoriesModal(false)}
+          onCategorySelect={handleCategoriesUpdate}
+          refreshTrigger={categoriesRefreshTrigger}
         />
       )}
 
