@@ -37,6 +37,19 @@ export default function NewSaleModal({ onClose, onCreated }) {
     return isNaN(num) ? 0 : num;
   };
 
+  // Calcular el total de la venta basado en las líneas actuales
+  const calcularTotalVenta = (lineas) => {
+    let total = 0;
+    lineas.forEach(linea => {
+      if (linea.codigo_barras && linea.cantidad > 0) {
+        const precio = toNumber(linea.precio);
+        const cantidad = toNumber(linea.cantidad);
+        total += precio * cantidad;
+      }
+    });
+    return total;
+  };
+
   // Buscar producto por código de barras
   const buscarProducto = (codigo_barras) => {
     if (!codigo_barras) return null;
@@ -145,14 +158,14 @@ export default function NewSaleModal({ onClose, onCreated }) {
     setError(null);
     
     // Validar campos requeridos
-    const productos = lines.map(l => ({
+    const productosParaEnviar = lines.map(l => ({
       codigo_barras: String(l.codigo_barras || '').trim(),
       cantidad: Number(l.cantidad),
     }));
 
     if (
-      productos.length === 0 ||
-      productos.some(p => !p.codigo_barras || !Number.isInteger(p.cantidad) || p.cantidad <= 0)
+      productosParaEnviar.length === 0 ||
+      productosParaEnviar.some(p => !p.codigo_barras || !Number.isInteger(p.cantidad) || p.cantidad <= 0)
     ) {
       setError('Cada línea necesita un código de barras válido y cantidad entera positiva.');
       return;
@@ -167,16 +180,21 @@ export default function NewSaleModal({ onClose, onCreated }) {
 
     setLoading(true);
     try {
-      const payload = { productos, tipo_pago: tipoPago };
+      const payload = { productos: productosParaEnviar, tipo_pago: tipoPago };
+      console.log('Enviando venta:', payload); // DEBUG
       const res = await postVenta(payload);
       setLoading(false);
+      
+      console.log('Respuesta de la venta:', res); // DEBUG
+      
       if (res.error) {
         setError(res.error || JSON.stringify(res));
         return;
       }
       
       // Guardar los productos que se enviaron para mostrarlos en el modal
-      setProductosVendidos(lines.filter(line => line.codigo_barras));
+      const productosConInfo = lines.filter(line => line.codigo_barras);
+      setProductosVendidos(productosConInfo);
       
       // Mostrar modal de confirmación
       setVentaRegistrada(res);
@@ -184,7 +202,8 @@ export default function NewSaleModal({ onClose, onCreated }) {
       
     } catch (err) {
       setLoading(false);
-      setError(err.message);
+      setError(err.message || 'Error al registrar la venta');
+      console.error('Error en submit:', err);
     }
   }
 
@@ -193,21 +212,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
     onCreated && onCreated(ventaRegistrada);
     onClose && onClose();
   }
-
-  // Función para obtener el nombre del producto (si está disponible en la respuesta)
-  const getNombreProducto = (producto, index) => {
-    if (producto.nombre_producto) return producto.nombre_producto;
-    if (producto.nombre) return producto.nombre;
-    return `Producto ${index + 1}`;
-  };
-
-  // Función para obtener el precio unitario (si está disponible en la respuesta)
-  const getPrecioUnitario = (producto) => {
-    if (producto.precio_unitario !== undefined) return toNumber(producto.precio_unitario);
-    if (producto.precio !== undefined) return toNumber(producto.precio);
-    if (producto.precio_venta !== undefined) return toNumber(producto.precio_venta);
-    return 0;
-  };
 
   return (
     <div style={styles.overlay}>
@@ -344,11 +348,12 @@ export default function NewSaleModal({ onClose, onCreated }) {
                   </div>
                   <div style={styles.detailRow}>
                     <strong>Total:</strong> 
-                    <span>${toNumber(ventaRegistrada?.total).toFixed(2)}</span>
+                    {/* Calcular el total basado en los productos vendidos */}
+                    <span>${calcularTotalVenta(lines.filter(line => line.codigo_barras)).toFixed(2)}</span>
                   </div>
                   <div style={styles.detailRow}>
                     <strong>Productos:</strong> 
-                    <span>{ventaRegistrada?.productos?.length || productosVendidos.length || 0}</span>
+                    <span>{lines.filter(line => line.codigo_barras).length}</span>
                   </div>
                   <div style={styles.detailRow}>
                     <strong>Tipo de Pago:</strong> 
@@ -364,24 +369,10 @@ export default function NewSaleModal({ onClose, onCreated }) {
                 <div style={styles.productsSection}>
                   <h4 style={styles.productsTitle}>Productos Vendidos:</h4>
                   <div style={styles.productsList}>
-                    {/* Mostrar productos de la respuesta de la API si están disponibles */}
-                    {ventaRegistrada?.productos?.map((producto, index) => (
-                      <div key={index} style={styles.productItem}>
-                        <span style={styles.productName}>
-                          {getNombreProducto(producto, index)}
-                        </span>
-                        <span style={styles.productQuantity}>
-                          Cantidad: {producto.cantidad}
-                        </span>
-                        <span style={styles.productPrice}>
-                          ${(getPrecioUnitario(producto) * (producto.cantidad || 0)).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                    
-                    {/* Si no hay productos en la respuesta, mostrar los que se enviaron */}
-                    {(!ventaRegistrada?.productos || ventaRegistrada.productos.length === 0) && 
-                     productosVendidos.map((producto, index) => (
+                    {/* Mostrar los productos que se vendieron con su información completa */}
+                    {lines
+                      .filter(line => line.codigo_barras)
+                      .map((producto, index) => (
                       <div key={index} style={styles.productItem}>
                         <span style={styles.productName}>
                           {producto.nombre || `Producto ${index + 1}`}
@@ -414,7 +405,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
   );
 }
 
-// 🎨 Estilos (sin cambios)
+// 🎨 Estilos (se mantienen igual)
 const styles = {
   overlay: {
     position: 'fixed',

@@ -60,16 +60,7 @@ export default function UpdateStockModal({ onClose, onSuccess, allowCodigo }) {
             />
           </label>
 
-          <label style={styles.label}>
-            ID Producto (opcional)
-            <input
-              style={styles.input}
-              name="id_producto"
-              value={form.id_producto}
-              onChange={handleChange}
-              placeholder="Ej. 42"
-            />
-          </label>
+          
 
           <label style={styles.label}>
             Cantidad
@@ -195,3 +186,5 @@ const styles = {
     fontSize: '0.9rem',
   },
 };
+
+

@@ -13,12 +13,15 @@ const COLORS = {
   hoverSand: "#E2CFC3",
 };
 
-// Mapeo de categorías
+// Mapeo de categorías (actualizado para coincidir con CategoriesModal)
 const CATEGORIAS = {
   1: { nombre: "Joyería", icon: "💎", color: "#B0836A" },
   2: { nombre: "Macetas", icon: "🏺", color: "#8A9B68" }, 
   3: { nombre: "Productos de cocina", icon: "🍽️", color: "#C44536" }
 };
+
+// Categorías base protegidas
+const CATEGORIAS_PROTEGIDAS = [1, 2, 3];
 
 export default function ProductosView({ filter = null }) {
   const [productos, setProductos] = useState([]);
@@ -81,7 +84,8 @@ export default function ProductosView({ filter = null }) {
     Object.keys(CATEGORIAS).forEach(id => {
       categorias[id] = {
         ...CATEGORIAS[id],
-        productos: []
+        productos: [],
+        protegida: CATEGORIAS_PROTEGIDAS.includes(parseInt(id))
       };
     });
 
@@ -97,7 +101,8 @@ export default function ProductosView({ filter = null }) {
             nombre: "Otros",
             icon: "📦",
             color: COLORS.grisPiedra,
-            productos: []
+            productos: [],
+            protegida: false
           };
         }
         categorias.otros.productos.push(producto);
@@ -178,9 +183,17 @@ export default function ProductosView({ filter = null }) {
             backgroundColor: categoria.color
           }}>
             {categoria.icon}
+            {categoria.protegida && (
+              <span style={styles.protectedIcon}>🔒</span>
+            )}
           </div>
           <div>
-            <h2 style={styles.categoriaTitle}>{categoria.nombre}</h2>
+            <h2 style={styles.categoriaTitle}>
+              {categoria.nombre}
+              {categoria.protegida && (
+                <span style={styles.protectedBadge}> Base</span>
+              )}
+            </h2>
             <p style={styles.categoriaCount}>
               {categoria.productos.length} producto{categoria.productos.length !== 1 ? 's' : ''}
             </p>
@@ -240,6 +253,7 @@ export default function ProductosView({ filter = null }) {
                   color: categoria.color
                 }}>
                   {categoria.icon} {categoria.nombre}
+                  {categoria.protegida && " 🔒"}
                 </div>
               </div>
             </article>
@@ -429,6 +443,7 @@ export default function ProductosView({ filter = null }) {
                   }}>
                     {CATEGORIAS[selected.id_categoria]?.icon || '📦'} 
                     {CATEGORIAS[selected.id_categoria]?.nombre || 'Categoría desconocida'}
+                    {CATEGORIAS_PROTEGIDAS.includes(selected.id_categoria) && " 🔒"}
                   </div>
                 )}
 
@@ -582,6 +597,7 @@ const styles = {
     marginBottom: "1.5rem",
     paddingBottom: "0.8rem",
     borderBottom: `2px solid ${COLORS.arena}`,
+    position: "relative",
   },
   categoriaIcon: {
     width: "60px",
@@ -593,12 +609,39 @@ const styles = {
     fontSize: "1.5rem",
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     flexShrink: 0,
+    position: "relative",
+  },
+  protectedIcon: {
+    position: "absolute",
+    top: "-5px",
+    right: "-5px",
+    fontSize: "0.8rem",
+    background: "white",
+    borderRadius: "50%",
+    width: "20px",
+    height: "20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
   },
   categoriaTitle: {
     color: COLORS.carbon,
     fontSize: "1.5rem",
     margin: 0,
     fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  protectedBadge: {
+    fontSize: "0.8rem",
+    color: "#4a90e2",
+    fontWeight: "normal",
+    fontStyle: "italic",
+    background: "rgba(74, 144, 226, 0.1)",
+    padding: "0.2rem 0.5rem",
+    borderRadius: "8px",
   },
   categoriaCount: {
     color: COLORS.grisPiedra,

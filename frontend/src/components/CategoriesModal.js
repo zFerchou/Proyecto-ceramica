@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/api';
 import Marco from "../images/Marco.png";
 
+// Categorías base protegidas
+const CATEGORIAS_BASE = {
+  1: { nombre: "Joyería", icon: "💎", color: "#B0836A" },
+  2: { nombre: "Macetas", icon: "🏺", color: "#8A9B68" }, 
+  3: { nombre: "Productos de cocina", icon: "🍽️", color: "#C44536" }
+};
+
+const CATEGORIAS_PROTEGIDAS = [1, 2, 3];
+
 function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, refreshTrigger }) {
   const [categorias, setCategorias] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -15,6 +24,11 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
   const [categoriaToDelete, setCategoriaToDelete] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notificationData, setNotificationData] = useState({ type: '', message: '', categoriaProducto: null });
+
+  // Verificar si una categoría es protegida
+  const isCategoriaProtegida = (idCategoria) => {
+    return CATEGORIAS_PROTEGIDAS.includes(idCategoria);
+  };
 
   // Mostrar notificación en modal
   const showNotification = (type, message, categoriaProducto = null) => {
@@ -49,10 +63,16 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
       setError(null);
       setMessage(null);
     }
-  }, [isOpen, refreshTrigger]); // Agregado refreshTrigger
+  }, [isOpen, refreshTrigger]);
 
   // Iniciar edición de categoría
   const handleEditClick = (categoria) => {
+    // Verificar si es categoría protegida
+    if (isCategoriaProtegida(categoria.id_categoria)) {
+      showNotification('warning', `La categoría "${categoria.nombre}" es una categoría base y no se puede editar.`);
+      return;
+    }
+    
     setEditingCategory(categoria);
     setFormData({
       nombre: categoria.nombre,
@@ -148,6 +168,16 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
   };
 
   const handleDeleteClick = async (categoria) => {
+    // Verificar si es una categoría protegida
+    if (isCategoriaProtegida(categoria.id_categoria)) {
+      showNotification(
+        'warning', 
+        `No se puede eliminar la categoría "${categoria.nombre}" porque es una categoría base del sistema.`,
+        categoria
+      );
+      return;
+    }
+
     // Verificar si la categoría tiene productos antes de eliminar
     const productosAsociados = await checkCategoriaHasProducts(categoria.id_categoria);
     
@@ -164,7 +194,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
       return;
     }
 
-    // Si no tiene productos, proceder con la eliminación
+    // Si no tiene productos y no es protegida, proceder con la eliminación
     setCategoriaToDelete(categoria);
     setShowDeleteModal(true);
   };
@@ -327,36 +357,50 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                 key={categoria.id_categoria} 
                 style={{
                   ...modalStyles.categoryItem,
-                  ...(selectedCategory?.id_categoria === categoria.id_categoria ? modalStyles.selectedCategory : {})
+                  ...(selectedCategory?.id_categoria === categoria.id_categoria ? modalStyles.selectedCategory : {}),
+                  ...(isCategoriaProtegida(categoria.id_categoria) ? modalStyles.protectedCategory : {})
                 }}
               >
                 <div 
                   style={modalStyles.categoryContent}
                   onClick={() => handleCategorySelect(categoria)}
                 >
-                  <div style={modalStyles.categoryName}>{categoria.nombre}</div>
+                  <div style={modalStyles.categoryName}>
+                    {categoria.nombre}
+                    {isCategoriaProtegida(categoria.id_categoria) && (
+                      <span style={modalStyles.protectedBadge}> 🔒 Base</span>
+                    )}
+                  </div>
                   {categoria.descripcion && (
                     <div style={modalStyles.categoryDesc}>{categoria.descripcion}</div>
                   )}
                 </div>
                 <div style={modalStyles.categoryActions}>
                   <button
-                    style={modalStyles.editButton}
+                    style={{
+                      ...modalStyles.editButton,
+                      ...(isCategoriaProtegida(categoria.id_categoria) ? modalStyles.disabledButton : {})
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditClick(categoria);
                     }}
-                    title="Editar categoría"
+                    title={isCategoriaProtegida(categoria.id_categoria) ? "Categoría base no editable" : "Editar categoría"}
+                    disabled={isCategoriaProtegida(categoria.id_categoria)}
                   >
                     ✏️
                   </button>
                   <button
-                    style={modalStyles.deleteButton}
+                    style={{
+                      ...modalStyles.deleteButton,
+                      ...(isCategoriaProtegida(categoria.id_categoria) ? modalStyles.disabledButton : {})
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteClick(categoria);
                     }}
-                    title="Eliminar categoría"
+                    title={isCategoriaProtegida(categoria.id_categoria) ? "Categoría base no eliminable" : "Eliminar categoría"}
+                    disabled={isCategoriaProtegida(categoria.id_categoria)}
                   >
                     🗑️
                   </button>
@@ -436,7 +480,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
               <p style={modalStyles.notificationText}>{notificationData.message}</p>
               
               {/* Mostrar información de productos si la categoría tiene productos */}
-              {notificationData.categoriaProducto && (
+              {notificationData.categoriaProducto && notificationData.categoriaProducto.productos && (
                 <div style={modalStyles.productosInfo}>
                   <h4 style={modalStyles.productosTitle}>
                     Productos en esta categoría:
@@ -771,6 +815,18 @@ const modalStyles = {
     borderColor: '#a67c52',
     borderWidth: '2px',
   },
+  protectedCategory: {
+    backgroundColor: '#f0f8ff',
+    borderColor: '#4a90e2',
+    borderWidth: '2px',
+  },
+  protectedBadge: {
+    fontSize: '0.7rem',
+    color: '#4a90e2',
+    fontWeight: 'normal',
+    marginLeft: '0.5rem',
+    fontStyle: 'italic',
+  },
   categoryName: {
     fontWeight: 'bold',
     fontSize: '1rem',
@@ -789,6 +845,11 @@ const modalStyles = {
     cursor: 'pointer',
     fontSize: '0.8rem',
     transition: 'all 0.3s ease',
+  },
+  disabledButton: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+    backgroundColor: '#cccccc',
   },
   noData: {
     textAlign: 'center',
