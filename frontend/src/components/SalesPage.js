@@ -64,7 +64,6 @@ export default function SalesPage() {
   const [undoSuccess, setUndoSuccess] = useState({ open: false, mensaje: '' });
 
   // --- Buscar ventas
-  // Lógica de búsqueda: si query coincide con patrón EAN-13 (13 dígitos) buscar por codigo_venta; si no, por nombre
   const buscar = useCallback(async () => {
     setError(null);
     setLoading(true);
@@ -72,20 +71,21 @@ export default function SalesPage() {
       let params;
       const trimmed = query.trim();
       if (trimmed) {
-        const esCodigoVenta = /^\d{8,14}$/.test(trimmed); // permitir entre 8 y 14 dígitos (flexible por si cambia)
+        const esCodigoVenta = /^\d{8,14}$/.test(trimmed);
         if (esCodigoVenta) {
-          // Intentar primero coincidencia exacta por codigo_venta
           params = { codigo_venta: trimmed };
         } else {
-          // Búsqueda por nombre parcial
           params = { nombre: trimmed };
         }
       }
       const res = await getVentas(params);
       setLoading(false);
+      
+      // Para depuración - ver la estructura
+      console.log('Ventas recibidas:', res);
+      
       if (res.error) return setError(res.error);
 
-      // Si buscamos por codigo_venta y no hay resultados, intentar buscar por nombre como fallback
       if (params && params.codigo_venta && Array.isArray(res) && res.length === 0) {
         const fallback = await getVentas({ nombre: trimmed });
         if (!fallback.error) {
@@ -106,7 +106,7 @@ export default function SalesPage() {
     setOpenUndo(true);
   }
 
-  // --- Confirmar deshacer con modal de éxito
+  // --- Confirmar deshacer
   async function confirmUndo(codigo_venta) {
     const res = await deleteVenta(codigo_venta);
 
@@ -130,7 +130,7 @@ export default function SalesPage() {
     return typeof price === 'number' ? `$${price.toFixed(2)}` : `$${parseFloat(price || 0).toFixed(2)}`;
   };
 
-  // Obtener precio unitario de diferentes propiedades posibles
+  // Obtener precio unitario
   const getPrecioUnitario = (producto) => {
     const posiblesPropiedades = [
       'precio_unitario',
@@ -150,7 +150,7 @@ export default function SalesPage() {
     return 0;
   };
 
-  // Obtener total de la venta de diferentes propiedades posibles
+  // Obtener total de la venta
   const getTotalVenta = (venta) => {
     const posiblesPropiedadesTotal = [
       'total',
@@ -167,7 +167,6 @@ export default function SalesPage() {
       }
     }
     
-    // Si no encuentra el total, calcularlo sumando los subtotales de los productos
     if (venta.productos && Array.isArray(venta.productos)) {
       return venta.productos.reduce((sum, producto) => {
         const precio = getPrecioUnitario(producto);
@@ -179,7 +178,7 @@ export default function SalesPage() {
     return 0;
   };
 
-  // Obtener tipo de pago de diferentes propiedades posibles
+  // Obtener tipo de pago
   const getTipoPago = (venta) => {
     const posiblesPropiedadesPago = [
       'tipo_pago',
@@ -198,6 +197,32 @@ export default function SalesPage() {
     return 'No especificado';
   };
 
+  // Obtener usuario que registró la venta - ESPECÍFICO PARA TU BACKEND
+  const getUsuarioVenta = (venta) => {
+    // Prioridad 1: nombre_vendedor (que viene de tu backend)
+    if (venta.nombre_vendedor !== undefined && venta.nombre_vendedor !== null && venta.nombre_vendedor !== '') {
+      return venta.nombre_vendedor;
+    }
+    
+    // Prioridad 2: otras propiedades posibles como respaldo
+    const posiblesPropiedadesUsuario = [
+      'vendedor',
+      'usuario',
+      'nombre_usuario',
+      'registrado_por',
+      'user_name',
+      'usuario_registro'
+    ];
+    
+    for (const prop of posiblesPropiedadesUsuario) {
+      if (venta[prop] !== undefined && venta[prop] !== null && venta[prop] !== '') {
+        return venta[prop];
+      }
+    }
+    
+    return 'No especificado';
+  };
+
   // Calcular subtotal por producto
   const calculateSubtotal = (producto) => {
     const precio = getPrecioUnitario(producto);
@@ -205,7 +230,7 @@ export default function SalesPage() {
     return precio * cantidad;
   };
 
-  // Agrupar productos duplicados por ID o nombre
+  // Agrupar productos duplicados
   const agruparProductos = (productos) => {
     if (!productos || !Array.isArray(productos)) return [];
     
@@ -215,10 +240,8 @@ export default function SalesPage() {
       const clave = producto.id_producto || producto.nombre_producto || JSON.stringify(producto);
       
       if (productosAgrupados[clave]) {
-        // Si el producto ya existe, sumar la cantidad
         productosAgrupados[clave].cantidad += producto.cantidad || 0;
       } else {
-        // Si es un producto nuevo, agregarlo
         productosAgrupados[clave] = { ...producto };
       }
     });
@@ -268,6 +291,7 @@ export default function SalesPage() {
         const totalVenta = getTotalVenta(venta);
         const productosAgrupados = agruparProductos(venta.productos);
         const tipoPago = getTipoPago(venta);
+        const usuarioVenta = getUsuarioVenta(venta);
         
         return (
           <div key={venta.codigo_venta} style={styles.card}>
@@ -276,6 +300,7 @@ export default function SalesPage() {
               <div style={styles.ventaInfo}>
                 <div><strong>Fecha:</strong> {new Date(venta.fecha).toLocaleString()}</div>
                 <div><strong>Tipo de pago:</strong> {tipoPago}</div>
+                <div><strong>Vendedor:</strong> {usuarioVenta}</div>
                 <div><strong>Total:</strong> {formatPrice(totalVenta)}</div>
               </div>
             </div>
@@ -336,7 +361,6 @@ export default function SalesPage() {
               </div>
             </div>
 
-            {/* SECCIÓN DE RESUMEN CON CÁLCULO DE TOTAL */}
             <div style={styles.summarySection}>
               <div style={styles.summaryRow}>
                 <span>Subtotal productos:</span>
@@ -373,9 +397,7 @@ export default function SalesPage() {
         <NewSaleModal
           onClose={() => setOpenNew(false)}
           onCreated={(ventaData) => {
-            // Asegurarse de que la nueva venta tenga el tipo de pago
             if (ventaData && !ventaData.tipo_pago) {
-              // Si no viene con tipo_pago, forzar una recarga para obtener todos los datos
               buscar();
             } else {
               setVentas(prev => [ventaData, ...prev]);
@@ -411,7 +433,7 @@ export default function SalesPage() {
   );
 }
 
-// 🎨 Estilos café caqui (sin cambios)
+// Estilos
 const styles = {
   container: {
     backgroundColor: '#f5f1e3',
@@ -566,7 +588,6 @@ const styles = {
     color: '#2c5aa0',
     fontWeight: 'bold'
   },
-  // SECCIÓN DE RESUMEN
   summarySection: {
     backgroundColor: '#f0e6d2',
     padding: '1rem',
