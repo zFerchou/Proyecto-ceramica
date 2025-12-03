@@ -1,7 +1,7 @@
 // src/components/AuthModal.js
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import loginapi from '../api/loginapi';
+import authApi from '../api/loginapi';
 import authService from '../services/authService';
 import Verificar2FA from './Verificar2FA';
 
@@ -28,11 +28,10 @@ export default function AuthModal({ onLoginSuccess }) {
   const [errorFP, setErrorFP] = useState('');
   const [loadingFP, setLoadingFP] = useState(false);
 
-  // Normaliza errores para mostrar mensajes legibles (evita mostrar JSON crudo)
+  // Normaliza errores para mostrar mensajes legibles
   const normalizeError = (err) => {
     const raw = typeof err === 'string' ? err : (err?.message || 'Ocurrió un error');
     try {
-      // Si viene como JSON (por ejemplo: {"error":"..."})
       if (typeof raw === 'string' && raw.trim().startsWith('{')) {
         const obj = JSON.parse(raw);
         return obj.error || obj.message || raw;
@@ -51,21 +50,37 @@ export default function AuthModal({ onLoginSuccess }) {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError('');
+    
     if (!credentials.email || !credentials.password) {
       setLoginError('Por favor completa todos los campos');
       setLoginLoading(false);
       return;
     }
+    
     try {
-      const data = await loginapi.login(credentials);
+      const data = await authApi.login(credentials);
+      
       if (data.require2FA) {
-        setPending2FA({ userId: data.userId || data.id, email: data.email });
+        setPending2FA({ 
+          userId: data.userId || data.id, 
+          email: data.email,
+          nombre: data.nombre,
+          rol: data.rol 
+        });
       } else if (data.token && data.user) {
-        // Persistencia centralizada
+        // Guardar autenticación con datos completos
         authService.setAuthData(data.token, data.user);
-        if (onLoginSuccess) onLoginSuccess();
+        
+        if (onLoginSuccess) onLoginSuccess(data.user);
         setIsVisible(false);
-        navigate('/');
+        
+        // Redirigir según el rol (comparación insensible a mayúsculas)
+        const userRol = data.user.rol?.toLowerCase() || 'empleado';
+        if (userRol === 'admin') {
+          navigate('/');
+        } else {
+          navigate('/ventas');
+        }
       } else {
         setLoginError('Respuesta inesperada del servidor');
       }
@@ -81,8 +96,9 @@ export default function AuthModal({ onLoginSuccess }) {
     setLoadingFU(true);
     setMessageFU('');
     setErrorFU('');
+    
     try {
-      const res = await loginapi.forgotUsername(emailFU);
+      const res = await authApi.forgotUsername(emailFU);
       setMessageFU(res.message || 'Revisa tu correo.');
     } catch (err) {
       setErrorFU(normalizeError(err) || 'Error al recuperar usuario');
@@ -96,8 +112,9 @@ export default function AuthModal({ onLoginSuccess }) {
     setLoadingFP(true);
     setMessageFP('');
     setErrorFP('');
+    
     try {
-      const res = await loginapi.forgotPassword(emailFP);
+      const res = await authApi.forgotPassword(emailFP);
       setMessageFP(res.message || 'Si el correo existe, se envió el enlace de recuperación');
     } catch (err) {
       setErrorFP(normalizeError(err) || 'Error al enviar correo');
@@ -114,12 +131,25 @@ export default function AuthModal({ onLoginSuccess }) {
       <Verificar2FA
         userId={pending2FA.userId}
         email={pending2FA.email}
+        nombre={pending2FA.nombre}
+        rol={pending2FA.rol}
         onSuccess={(data) => {
+          console.log('Datos de autenticación 2FA recibidos:', data);
           if (data.token && data.user) {
+            // Guardar autenticación con datos completos
             authService.setAuthData(data.token, data.user);
-            if (onLoginSuccess) onLoginSuccess();
+            
+            if (onLoginSuccess) onLoginSuccess(data.user);
             setIsVisible(false);
-            navigate('/');
+            
+            // Redirigir según el rol (comparación insensible a mayúsculas)
+            const userRol = data.user.rol?.toLowerCase() || 'empleado';
+            console.log('Rol del usuario:', userRol);
+            if (userRol === 'admin') {
+              navigate('/');
+            } else {
+              navigate('/ventas');
+            }
           }
         }}
         onError={(msg) => setLoginError(normalizeError(msg))}
@@ -150,17 +180,20 @@ export default function AuthModal({ onLoginSuccess }) {
     buttonGroup: { display: 'flex', justifyContent: 'space-between', gap: '0.5rem' },
     buttonPrimary: {
       backgroundColor: '#a67c52', color: 'white', border: 'none',
-      padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer'
+      padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer',
+      transition: 'background-color 0.3s'
     },
     buttonCancel: {
       backgroundColor: '#8b6b4a', color: 'white', border: 'none',
-      padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer'
+      padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer',
+      transition: 'background-color 0.3s'
     },
     formGroup: { marginBottom: '1rem', display: 'flex', flexDirection: 'column' },
     input: { padding: '0.5rem', borderRadius: '8px', border: '1px solid #c2a878', fontSize: '1rem', marginTop: '0.3rem' },
-    errorMessage: { color: '#b00020', textAlign: 'center', marginBottom: '1rem' },
-    successMessage: { color: '#1b5e20', textAlign: 'center', marginBottom: '1rem' },
-    link: { color: '#4b3621', cursor: 'pointer', margin: '0 0.25rem' },
+    errorMessage: { color: '#b00020', textAlign: 'center', marginBottom: '1rem', padding: '10px', backgroundColor: 'rgba(176,0,32,0.1)', borderRadius: '8px' },
+    successMessage: { color: '#1b5e20', textAlign: 'center', marginBottom: '1rem', padding: '10px', backgroundColor: 'rgba(27,94,32,0.1)', borderRadius: '8px' },
+    link: { color: '#4b3621', cursor: 'pointer', margin: '0 0.25rem', textDecoration: 'underline' },
+    loadingText: { color: '#735f53', textAlign: 'center', marginTop: '10px' }
   };
 
   return (
@@ -174,16 +207,52 @@ export default function AuthModal({ onLoginSuccess }) {
               {loginError && <div style={styles.errorMessage}>⚠️ {loginError}</div>}
               <div style={styles.formGroup}>
                 <label>Email</label>
-                <input type="email" name="email" value={credentials.email} onChange={handleLoginChange} placeholder="tu.email@ejemplo.com" style={styles.input} required disabled={loginLoading}/>
+                <input 
+                  type="email" 
+                  name="email" 
+                  value={credentials.email} 
+                  onChange={handleLoginChange} 
+                  placeholder="tu.email@ejemplo.com" 
+                  style={styles.input} 
+                  required 
+                  disabled={loginLoading}
+                />
               </div>
               <div style={styles.formGroup}>
                 <label>Contraseña</label>
-                <input type="password" name="password" value={credentials.password} onChange={handleLoginChange} placeholder="Tu contraseña" style={styles.input} required minLength={6} disabled={loginLoading}/>
+                <input 
+                  type="password" 
+                  name="password" 
+                  value={credentials.password} 
+                  onChange={handleLoginChange} 
+                  placeholder="Tu contraseña" 
+                  style={styles.input} 
+                  required 
+                  minLength={6} 
+                  disabled={loginLoading}
+                />
               </div>
               <div style={styles.buttonGroup}>
-                <button type="submit" style={styles.buttonPrimary} disabled={loginLoading}>{loginLoading ? 'Iniciando...' : 'Iniciar Sesión'}</button>
-                <button type="button" style={styles.buttonCancel} onClick={() => setIsVisible(false)}>Cancelar</button>
+                <button 
+                  type="submit" 
+                  style={styles.buttonPrimary} 
+                  disabled={loginLoading}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#8b6b4a'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#a67c52'}
+                >
+                  {loginLoading ? 'Iniciando...' : 'Iniciar Sesión'}
+                </button>
+                <button 
+                  type="button" 
+                  style={styles.buttonCancel}
+                  onClick={() => setIsVisible(false)}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#735f53'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#8b6b4a'}
+                >
+                  Cancelar
+                </button>
               </div>
+              {loginLoading && <div style={styles.loadingText}>Verificando credenciales...</div>}
             </form>
             <div style={{ textAlign: 'center', marginTop: '1rem' }}>
               <span style={styles.link} onClick={() => setMode('forgotUsername')}>¿Olvidaste tu nombre de usuario?</span> | 
@@ -198,13 +267,37 @@ export default function AuthModal({ onLoginSuccess }) {
             <form onSubmit={handleForgotUsername}>
               <div style={styles.formGroup}>
                 <label>Correo Electrónico</label>
-                <input type="email" value={emailFU} onChange={(e) => setEmailFU(e.target.value)} placeholder="correo registrado" style={styles.input} required disabled={loadingFU}/>
+                <input 
+                  type="email" 
+                  value={emailFU} 
+                  onChange={(e) => setEmailFU(e.target.value)} 
+                  placeholder="correo registrado" 
+                  style={styles.input} 
+                  required 
+                  disabled={loadingFU}
+                />
               </div>
               {messageFU && <div style={styles.successMessage}>{messageFU}</div>}
               {errorFU && <div style={styles.errorMessage}>{errorFU}</div>}
               <div style={styles.buttonGroup}>
-                <button type="submit" style={styles.buttonPrimary} disabled={loadingFU}>{loadingFU ? 'Enviando...' : 'Recuperar Usuario'}</button>
-                <button type="button" style={styles.buttonCancel} onClick={() => setMode('login')}>Volver</button>
+                <button 
+                  type="submit" 
+                  style={styles.buttonPrimary} 
+                  disabled={loadingFU}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#8b6b4a'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#a67c52'}
+                >
+                  {loadingFU ? 'Enviando...' : 'Recuperar Usuario'}
+                </button>
+                <button 
+                  type="button" 
+                  style={styles.buttonCancel}
+                  onClick={() => setMode('login')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#735f53'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#8b6b4a'}
+                >
+                  Volver
+                </button>
               </div>
             </form>
           </>
@@ -216,13 +309,37 @@ export default function AuthModal({ onLoginSuccess }) {
             <form onSubmit={handleForgotPassword}>
               <div style={styles.formGroup}>
                 <label>Correo Electrónico</label>
-                <input type="email" value={emailFP} onChange={(e) => setEmailFP(e.target.value)} placeholder="correo registrado" style={styles.input} required disabled={loadingFP}/>
+                <input 
+                  type="email" 
+                  value={emailFP} 
+                  onChange={(e) => setEmailFP(e.target.value)} 
+                  placeholder="correo registrado" 
+                  style={styles.input} 
+                  required 
+                  disabled={loadingFP}
+                />
               </div>
               {messageFP && <div style={styles.successMessage}>{messageFP}</div>}
               {errorFP && <div style={styles.errorMessage}>{errorFP}</div>}
               <div style={styles.buttonGroup}>
-                <button type="submit" style={styles.buttonPrimary} disabled={loadingFP}>{loadingFP ? 'Enviando...' : 'Recuperar Contraseña'}</button>
-                <button type="button" style={styles.buttonCancel} onClick={() => setMode('login')}>Volver</button>
+                <button 
+                  type="submit" 
+                  style={styles.buttonPrimary} 
+                  disabled={loadingFP}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#8b6b4a'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#a67c52'}
+                >
+                  {loadingFP ? 'Enviando...' : 'Recuperar Contraseña'}
+                </button>
+                <button 
+                  type="button" 
+                  style={styles.buttonCancel}
+                  onClick={() => setMode('login')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#735f53'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#8b6b4a'}
+                >
+                  Volver
+                </button>
               </div>
             </form>
           </>

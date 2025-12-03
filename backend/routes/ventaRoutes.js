@@ -8,10 +8,15 @@ import {
   anularProductosPorCodigo, 
   generarReporte,
   obtenerVentas,
-  obtenerVentaPorCodigo
+  obtenerVentaPorCodigo,
+  obtenerMisEstadisticas  // NUEVO
 } from '../controllers/ventaController.js';
+import { verifyJWT } from '../middlewares/authMiddleware.js';
 
 const router = Router();
+
+// Aplicar autenticación a TODAS las rutas de ventas
+router.use(verifyJWT);
 
 /**
  * @swagger
@@ -26,6 +31,8 @@ const router = Router();
  *   post:
  *     summary: "Crear una venta con productos y generar un ticket"
  *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -71,6 +78,10 @@ const router = Router();
  *                   type: string
  *                 fecha:
  *                   type: string
+ *                 id_usuario:
+ *                   type: integer
+ *                 total_venta:
+ *                   type: number
  *                 productos:
  *                   type: array
  *                   items:
@@ -82,69 +93,86 @@ const router = Router();
  *                         type: integer
  *                       precio:
  *                         type: number
- *       400:
- *         description: Solicitud inválida (tipo_pago o productos)
- *       404:
- *         description: Producto no encontrado
- *       500:
- *         description: Error inesperado al registrar la venta
+ *                       subtotal:
+ *                         type: number
  */
 router.post('/', crearVenta);
 
 /**
  * @swagger
- * /ventas:
+ * /ventas/mis-estadisticas:
  *   get:
- *     summary: "Obtener información de una venta"
+ *     summary: "Obtener estadísticas personales de ventas"
  *     tags: [Ventas]
- *     parameters:
- *       - in: query
- *         name: codigo_venta
- *         schema:
- *           type: string
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Venta encontrada
+ *         description: Estadísticas obtenidas exitosamente
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 id_venta:
- *                   type: integer
- *                 fecha:
- *                   type: string
- *                 tipo_pago:
- *                   type: string
- *                 id_ticket:
- *                   type: integer
- *                 codigo_venta:
- *                   type: string
- *                 productos:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       nombre_producto:
- *                         type: string
- *                       cantidad:
- *                         type: integer
- *                       precio:
- *                         type: number
- *       400:
- *         description: Debe enviar codigo_venta
- *       404:
- *         description: Venta no encontrada
- *       500:
- *         description: Error inesperado al consultar la venta
+ *                 hoy:
+ *                   type: object
+ *                   properties:
+ *                     ventas:
+ *                       type: integer
+ *                     total:
+ *                       type: number
+ *                 mes:
+ *                   type: object
+ *                   properties:
+ *                     ventas:
+ *                       type: integer
+ *                     total:
+ *                       type: number
+ *                 general:
+ *                   type: object
+ *                   properties:
+ *                     ventas:
+ *                       type: integer
+ *                     total:
+ *                       type: number
  */
-// Nuevo: obtener por codigo_venta vía path
+router.get('/mis-estadisticas', obtenerMisEstadisticas);
+
+/**
+ * @swagger
+ * /ventas/all:
+ *   get:
+ *     summary: "Obtener todas las ventas (filtrado por rol)"
+ *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         schema:
+ *           type: string
+ *         description: "Filtrar por nombre de producto"
+ *       - in: query
+ *         name: codigo_venta
+ *         schema:
+ *           type: string
+ *         description: "Filtrar por código de venta"
+ *     responses:
+ *       200:
+ *         description: Lista de ventas obtenida exitosamente
+ *       403:
+ *         description: No autorizado
+ */
+router.get('/all', obtenerVentas);
+
 /**
  * @swagger
  * /ventas/codigo/{codigo_venta}:
  *   get:
  *     summary: "Obtener información de una venta por codigo_venta"
  *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: codigo_venta
@@ -154,12 +182,14 @@ router.post('/', crearVenta);
  *     responses:
  *       200:
  *         description: Venta encontrada
+ *       403:
+ *         description: No tienes permiso para ver esta venta
  *       404:
  *         description: Venta no encontrada
  */
 router.get('/codigo/:codigo_venta', obtenerVentaPorCodigo);
 
-// Mantener consulta por query temporalmente (compatibilidad)
+// Mantener consulta por query para compatibilidad
 router.get('/', obtenerVenta);
 
 /**
@@ -168,6 +198,8 @@ router.get('/', obtenerVenta);
  *   put:
  *     summary: "Actualizar productos o tipo de pago de una venta por codigo_venta"
  *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: codigo_venta
@@ -187,7 +219,7 @@ router.get('/', obtenerVenta);
  *                 description: "Nuevo tipo de pago para la venta"
  *               productos:
  *                 type: array
- *                 description: "Lista de productos a actualizar (por nombre) con sus cantidades finales"
+ *                 description: "Lista de productos a actualizar"
  *                 items:
  *                   type: object
  *                   required:
@@ -201,17 +233,10 @@ router.get('/', obtenerVenta);
  *     responses:
  *       200:
  *         description: Venta actualizada correctamente
- *       400:
- *         description: Solicitud inválida (tipo_pago o productos)
- *       404:
- *         description: Venta o producto no encontrado
- *       500:
- *         description: Error al actualizar venta
+ *       403:
+ *         description: No tienes permiso para actualizar esta venta
  */
 router.put('/codigo/:codigo_venta', actualizarVentaPorCodigo);
-
-// Anulación completa por codigo_venta
-router.delete('/deshacer/:codigo_venta', deshacerVenta);
 
 /**
  * @swagger
@@ -219,38 +244,30 @@ router.delete('/deshacer/:codigo_venta', deshacerVenta);
  *   delete:
  *     summary: "Deshacer (anular) una venta y revertir stock usando código de venta"
  *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: codigo_venta
  *         required: true
  *         schema:
  *           type: string
- *           description: "Código único de la venta generado al crear la venta"
  *     responses:
  *       200:
- *         description: Venta eliminada correctamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                 codigo_venta:
- *                   type: string
- *       404:
- *         description: Venta no encontrada
- *       500:
- *         description: Error al procesar la solicitud
+ *         description: Venta deshecha correctamente
+ *       403:
+ *         description: No tienes permiso para deshacer esta venta
  */
-// (ruta ya definida arriba)
+router.delete('/deshacer/:codigo_venta', deshacerVenta);
 
 /**
  * @swagger
  * /ventas/codigo/{codigo_venta}/productos:
  *   patch:
- *     summary: "Anular o ajustar cantidades de productos específicos en una venta por codigo_venta"
+ *     summary: "Anular o ajustar cantidades de productos específicos en una venta"
  *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: codigo_venta
@@ -268,7 +285,7 @@ router.delete('/deshacer/:codigo_venta', deshacerVenta);
  *             properties:
  *               productos:
  *                 type: array
- *                 description: "Productos a anular o ajustar (por nombre) con la cantidad a restar"
+ *                 description: "Productos a anular o ajustar"
  *                 items:
  *                   type: object
  *                   required:
@@ -282,12 +299,8 @@ router.delete('/deshacer/:codigo_venta', deshacerVenta);
  *     responses:
  *       200:
  *         description: Productos anulados correctamente
- *       400:
- *         description: Solicitud inválida
- *       404:
- *         description: Venta o producto no encontrado
- *       500:
- *         description: Error al anular productos
+ *       403:
+ *         description: No tienes permiso para anular productos de esta venta
  */
 router.patch('/codigo/:codigo_venta/productos', anularProductosPorCodigo);
 
@@ -295,8 +308,10 @@ router.patch('/codigo/:codigo_venta/productos', anularProductosPorCodigo);
  * @swagger
  * /ventas/reporte:
  *   get:
- *     summary: "Generar reporte de ventas"
+ *     summary: "Generar reporte de ventas (filtrado por rol)"
  *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: fecha_inicio
@@ -312,55 +327,8 @@ router.patch('/codigo/:codigo_venta/productos', anularProductosPorCodigo);
  *           format: date
  *     responses:
  *       200:
- *         description: Reporte generado
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 total_vendido:
- *                   type: number
- *                 productos_mas_vendidos:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       nombre:
- *                         type: string
- *                       total_cantidad:
- *                         type: integer
- *                 tipo_pago_mas_usado:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       tipo_pago:
- *                         type: string
- *                       total:
- *                         type: integer
- *       400:
- *         description: Faltan fechas
- *       500:
- *         description: Error al generar reporte
+ *         description: Reporte generado exitosamente
  */
 router.get('/reporte', generarReporte);
-
-/**
- * @swagger
- * /ventas/all:
- *   get:
- *     summary: "Obtener todas las ventas con opción de filtrar por nombre de producto o código de venta"
- *     tags: [Ventas]
- *     parameters:
- *       - in: query
- *         name: nombre
- *         schema:
- *           type: string
- *       - in: query
- *         name: codigo_venta
- *         schema:
- *           type: string
- */
-router.get('/all', obtenerVentas);
 
 export default router;

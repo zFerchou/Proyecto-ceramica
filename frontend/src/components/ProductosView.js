@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getProductos, API_BASE } from "../api/api";
+import api, { API_BASE } from "../api/api"; // ← Cambia esto
 import PageBackground from "./PageBackground";
 import QRImage from "./QRImage";
 
@@ -44,26 +44,32 @@ export default function ProductosView({ filter = null }) {
   }, [filter]);
 
   // --- Cargar productos desde la API ---
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await getProductos();
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          setError(data?.error || `Error ${res.status}`);
-        } else {
-          setProductos(Array.isArray(data) ? data : []);
-        }
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+  // ProductosView.js - Actualiza el useEffect de carga
+useEffect(() => {
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      // Cambia esta línea:
+      // const res = await getProductos();
+      // const data = await res.json().catch(() => null);
+      
+      // Por esto:
+      const data = await api.getProductos(); // ← Usa api.getProductos()
+      
+      if (Array.isArray(data)) {
+        setProductos(data);
+      } else {
+        setError(data?.error || 'Error al cargar productos');
       }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, []);
+  }
+  load();
+}, []);
 
   // --- Modo responsivo ---
   useEffect(() => {

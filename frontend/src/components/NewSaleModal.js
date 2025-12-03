@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { postVenta, getProductos } from '../api/api';
+import React, { useState, useEffect } from 'react';
+import api from '../api/api'; // Importar api, no funciones individuales
 import Marco from "../images/Marco.png";
 
 export default function NewSaleModal({ onClose, onCreated }) {
@@ -12,24 +12,24 @@ export default function NewSaleModal({ onClose, onCreated }) {
   const [productosVendidos, setProductosVendidos] = useState([]);
   const [productos, setProductos] = useState([]);
 
-  // Cargar productos al abrir el modal
-  React.useEffect(() => {
+  // Cargar productos al abrir el modal - CORREGIDO
+  useEffect(() => {
     const cargarProductos = async () => {
       try {
-        const res = await getProductos();
-        const data = await res.json();
-        console.log('Productos cargados:', data); // DEBUG
+        const data = await api.getProductos(); // api.getProductos() devuelve datos directamente
+        console.log('Productos cargados:', data);
         if (Array.isArray(data)) {
           setProductos(data);
         }
       } catch (err) {
         console.error('Error al cargar productos:', err);
+        setError('Error al cargar productos: ' + err.message);
       }
     };
+    
     cargarProductos();
   }, []);
 
-  // Función para convertir cualquier valor a número
   const toNumber = (value) => {
     if (value === null || value === undefined) return 0;
     if (typeof value === 'number') return value;
@@ -37,7 +37,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
     return isNaN(num) ? 0 : num;
   };
 
-  // Calcular el total de la venta basado en las líneas actuales
   const calcularTotalVenta = (lineas) => {
     let total = 0;
     lineas.forEach(linea => {
@@ -50,23 +49,21 @@ export default function NewSaleModal({ onClose, onCreated }) {
     return total;
   };
 
-  // Buscar producto por código de barras
   const buscarProducto = (codigo_barras) => {
     if (!codigo_barras) return null;
     
     const productoEncontrado = productos.find(p => {
-      console.log('Buscando:', codigo_barras, 'en producto:', p.codigo_barras, 'stock:', p.stock); // DEBUG
+      console.log('Buscando:', codigo_barras, 'en producto:', p.codigo_barras);
       return (
         p.codigo_barras === codigo_barras || 
         p.codigo_barras?.toString() === codigo_barras.toString()
       );
     });
     
-    console.log('Producto encontrado:', productoEncontrado); // DEBUG
+    console.log('Producto encontrado:', productoEncontrado);
     return productoEncontrado;
   };
 
-  // Obtener stock del producto de diferentes propiedades posibles
   const getStockProducto = (producto) => {
     if (!producto) return 0;
     
@@ -82,12 +79,12 @@ export default function NewSaleModal({ onClose, onCreated }) {
     for (const prop of posiblesPropiedadesStock) {
       if (producto[prop] !== undefined && producto[prop] !== null) {
         const stock = toNumber(producto[prop]);
-        console.log(`Stock encontrado en propiedad ${prop}:`, stock); // DEBUG
+        console.log(`Stock encontrado en propiedad ${prop}:`, stock);
         return stock;
       }
     }
     
-    console.log('No se encontró stock en ninguna propiedad'); // DEBUG
+    console.log('No se encontró stock en ninguna propiedad');
     return 0;
   };
 
@@ -97,9 +94,8 @@ export default function NewSaleModal({ onClose, onCreated }) {
     if (field === 'codigo_barras') {
       const producto = buscarProducto(value);
       if (producto) {
-        // Producto encontrado, actualizar información
         const stock = getStockProducto(producto);
-        console.log(`Stock para producto ${producto.nombre}:`, stock); // DEBUG
+        console.log(`Stock para producto ${producto.nombre}:`, stock);
         
         next[idx] = { 
           ...next[idx], 
@@ -109,7 +105,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
           precio: toNumber(producto.precio || producto.precio_venta || producto.precio_unitario || 0)
         };
       } else {
-        // Producto no encontrado, limpiar información
         next[idx] = { 
           ...next[idx], 
           codigo_barras: value,
@@ -122,7 +117,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
       const cantidad = parseInt(value) || 0;
       next[idx] = { ...next[idx], [field]: cantidad };
       
-      // Validar stock en tiempo real
       if (cantidad > next[idx].stock && next[idx].stock > 0) {
         setError(`⚠️ Stock insuficiente para "${next[idx].nombre}". Stock disponible: ${next[idx].stock}`);
       } else {
@@ -143,7 +137,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
     setLines(lines.filter((_, idx) => idx !== i));
   }
 
-  // Validar stock antes de enviar
   const validarStock = () => {
     for (const line of lines) {
       if (line.codigo_barras && line.cantidad > line.stock) {
@@ -157,21 +150,24 @@ export default function NewSaleModal({ onClose, onCreated }) {
     e.preventDefault();
     setError(null);
     
-    // Validar campos requeridos
-    const productosParaEnviar = lines.map(l => ({
+    // Filtrar solo líneas con código de barras válido
+    const lineasValidas = lines.filter(line => line.codigo_barras && line.codigo_barras.trim() !== '');
+    
+    if (lineasValidas.length === 0) {
+      setError('Debe agregar al menos un producto con código de barras válido.');
+      return;
+    }
+    
+    const productosParaEnviar = lineasValidas.map(l => ({
       codigo_barras: String(l.codigo_barras || '').trim(),
       cantidad: Number(l.cantidad),
     }));
 
-    if (
-      productosParaEnviar.length === 0 ||
-      productosParaEnviar.some(p => !p.codigo_barras || !Number.isInteger(p.cantidad) || p.cantidad <= 0)
-    ) {
+    if (productosParaEnviar.some(p => !p.codigo_barras || !Number.isInteger(p.cantidad) || p.cantidad <= 0)) {
       setError('Cada línea necesita un código de barras válido y cantidad entera positiva.');
       return;
     }
 
-    // Validar stock
     const errorStock = validarStock();
     if (errorStock) {
       setError(errorStock);
@@ -180,37 +176,44 @@ export default function NewSaleModal({ onClose, onCreated }) {
 
     setLoading(true);
     try {
-      const payload = { productos: productosParaEnviar, tipo_pago: tipoPago };
-      console.log('Enviando venta:', payload); // DEBUG
-      const res = await postVenta(payload);
-      setLoading(false);
+      const payload = { 
+        productos: productosParaEnviar, 
+        tipo_pago: tipoPago 
+      };
       
-      console.log('Respuesta de la venta:', res); // DEBUG
+      console.log('Enviando venta:', payload);
       
-      if (res.error) {
-        setError(res.error || JSON.stringify(res));
+      // CORRECCIÓN: api.postVenta devuelve datos directamente
+      const result = await api.postVenta(payload);
+      
+      console.log('Respuesta de la venta:', result);
+      
+      if (result.error) {
+        setError(result.error || 'Error al registrar venta');
         return;
       }
       
-      // Guardar los productos que se enviaron para mostrarlos en el modal
-      const productosConInfo = lines.filter(line => line.codigo_barras);
+      const productosConInfo = lineasValidas;
       setProductosVendidos(productosConInfo);
-      
-      // Mostrar modal de confirmación
-      setVentaRegistrada(res);
+      setVentaRegistrada(result);
       setShowConfirmation(true);
       
     } catch (err) {
-      setLoading(false);
-      setError(err.message || 'Error al registrar la venta');
       console.error('Error en submit:', err);
+      setError(err.message || 'Error al registrar la venta');
+    } finally {
+      setLoading(false);
     }
   }
 
   function handleCloseConfirmation() {
     setShowConfirmation(false);
-    onCreated && onCreated(ventaRegistrada);
-    onClose && onClose();
+    if (onCreated && ventaRegistrada) {
+      onCreated(ventaRegistrada);
+    }
+    if (onClose) {
+      onClose();
+    }
   }
 
   return (
@@ -227,6 +230,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
               value={tipoPago}
               onChange={e => setTipoPago(e.target.value)}
               style={styles.select}
+              disabled={loading}
             >
               <option>Efectivo</option>
               <option>Transacción</option>
@@ -249,6 +253,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
                     value={line.codigo_barras}
                     onChange={e => updateLine(idx, 'codigo_barras', e.target.value)}
                     style={styles.input}
+                    disabled={loading}
                   />
                   {line.nombre && line.nombre !== 'Producto no encontrado' && (
                     <div style={styles.productInfo}>
@@ -272,6 +277,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
                       width: '80px',
                       borderColor: line.stock > 0 && line.cantidad > line.stock ? '#b26a55' : '#c2a878'
                     }}
+                    disabled={loading}
                   />
                   {line.stock > 0 && (
                     <div style={styles.stockInfo}>
@@ -304,14 +310,19 @@ export default function NewSaleModal({ onClose, onCreated }) {
                   type="button"
                   onClick={() => removeLine(idx)}
                   style={styles.removeButton}
-                  disabled={lines.length === 1}
+                  disabled={lines.length === 1 || loading}
                 >
                   ✖
                 </button>
               </div>
             ))}
 
-            <button type="button" onClick={addLine} style={styles.addButton}>
+            <button 
+              type="button" 
+              onClick={addLine} 
+              style={styles.addButton}
+              disabled={loading}
+            >
               ➕ Agregar línea
             </button>
           </div>
@@ -327,7 +338,12 @@ export default function NewSaleModal({ onClose, onCreated }) {
             >
               {loading ? 'Guardando...' : '💾 Registrar venta'}
             </button>
-            <button type="button" style={styles.buttonCancel} onClick={onClose}>
+            <button 
+              type="button" 
+              style={styles.buttonCancel} 
+              onClick={onClose}
+              disabled={loading}
+            >
               ✖ Cancelar
             </button>
           </div>
@@ -348,7 +364,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
                   </div>
                   <div style={styles.detailRow}>
                     <strong>Total:</strong> 
-                    {/* Calcular el total basado en los productos vendidos */}
                     <span>${calcularTotalVenta(lines.filter(line => line.codigo_barras)).toFixed(2)}</span>
                   </div>
                   <div style={styles.detailRow}>
@@ -365,11 +380,9 @@ export default function NewSaleModal({ onClose, onCreated }) {
                   </div>
                 </div>
 
-                {/* Sección de productos vendidos */}
                 <div style={styles.productsSection}>
                   <h4 style={styles.productsTitle}>Productos Vendidos:</h4>
                   <div style={styles.productsList}>
-                    {/* Mostrar los productos que se vendieron con su información completa */}
                     {lines
                       .filter(line => line.codigo_barras)
                       .map((producto, index) => (
@@ -405,7 +418,6 @@ export default function NewSaleModal({ onClose, onCreated }) {
   );
 }
 
-// 🎨 Estilos (se mantienen igual)
 const styles = {
   overlay: {
     position: 'fixed',
@@ -558,7 +570,6 @@ const styles = {
     borderRadius: '6px',
     cursor: 'pointer',
     padding: '0.4rem 0.6rem',
-    opacity: 1,
   },
   buttonGroup: {
     display: 'flex',
@@ -592,7 +603,6 @@ const styles = {
     marginBottom: '1rem',
     fontSize: '0.9rem',
   },
-  // Estilos para el modal de confirmación
   confirmationOverlay: {
     position: 'fixed',
     top: 0,
@@ -713,17 +723,3 @@ const styles = {
     transition: 'background 0.3s ease',
   },
 };
-
-// Animación fadeIn
-const styleSheet = document.styleSheets[0];
-const keyframes = `
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-`;
-try {
-  styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
-} catch (e) {
-  console.log('Error inserting keyframes:', e);
-}

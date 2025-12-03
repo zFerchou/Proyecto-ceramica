@@ -7,7 +7,7 @@ import {
   resetPassword,
   verifyToken,
 } from '../controllers/authController.js';
-
+import { verifyJWT } from '../middlewares/authMiddleware.js';
 const router = Router();
 
 /**
@@ -35,15 +35,34 @@ const router = Router();
  *             properties:
  *               email:
  *                 type: string
+ *                 example: "admin@tienda.com"
  *               password:
  *                 type: string
+ *                 example: "password123"
  *     responses:
  *       200:
  *         description: "Éxito, requiere 2FA"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 require2FA:
+ *                   type: boolean
+ *                 userId:
+ *                   type: integer
+ *                 email:
+ *                   type: string
+ *                 nombre:
+ *                   type: string
  *       400:
  *         description: "Faltan datos"
  *       401:
  *         description: "Credenciales inválidas"
+ *       500:
+ *         description: "Error interno del servidor"
  */
 router.post('/login', login);
 
@@ -51,7 +70,7 @@ router.post('/login', login);
  * @swagger
  * /auth/verify2FA:
  *   post:
- *     summary: "Verifica el código 2FA enviado por correo"
+ *     summary: "Verifica el código 2FA enviado por correo y genera token JWT"
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -64,16 +83,94 @@ router.post('/login', login);
  *               - codigo
  *             properties:
  *               userId:
- *                 type: string
+ *                 type: integer
+ *                 example: 1
  *               codigo:
  *                 type: string
+ *                 example: "123456"
  *     responses:
  *       200:
  *         description: "Login exitoso con token JWT"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 token:
+ *                   type: string
+ *                   description: "Token JWT para autenticar solicitudes"
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     nombre:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     rol:
+ *                       type: string
+ *                 message:
+ *                   type: string
  *       400:
  *         description: "Código inválido o expirado"
+ *       404:
+ *         description: "Usuario no encontrado"
+ *       500:
+ *         description: "Error interno del servidor"
  */
 router.post('/verify2FA', verify2FA);
+
+/**
+ * @swagger
+ * /auth/verify:
+ *   get:
+ *     summary: "Verifica el token JWT actual y devuelve información del usuario"
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "Token válido, información del usuario"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     id:
+ *                       type: integer
+ *                     email:
+ *                       type: string
+ *                     rol:
+ *                       type: string
+ *                     nombre:
+ *                       type: string
+ *                     isAdmin:
+ *                       type: boolean
+ *                     isEmployee:
+ *                       type: boolean
+ *       401:
+ *         description: "Token no proporcionado o inválido"
+ *       403:
+ *         description: "Token expirado"
+ */
+router.get('/verify', verifyJWT, (req, res) => {
+  // Esta ruta simplemente devuelve la información del usuario desde el token
+  res.json({
+    success: true,
+    user: req.user,
+    message: 'Token válido'
+  });
+});
 
 /**
  * @swagger
@@ -92,9 +189,25 @@ router.post('/verify2FA', verify2FA);
  *             properties:
  *               email:
  *                 type: string
+ *                 example: "usuario@ejemplo.com"
  *     responses:
  *       200:
  *         description: "Correo enviado con el nombre de usuario"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: "Correo requerido"
+ *       404:
+ *         description: "No se encontró una cuenta con ese correo"
+ *       500:
+ *         description: "Error interno del servidor"
  */
 router.post('/forgot-username', forgotUsername);
 
@@ -115,9 +228,23 @@ router.post('/forgot-username', forgotUsername);
  *             properties:
  *               email:
  *                 type: string
+ *                 example: "usuario@ejemplo.com"
  *     responses:
  *       200:
  *         description: "Si el correo existe, se envió el enlace de recuperación"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: "Correo requerido"
+ *       500:
+ *         description: "Error interno del servidor"
  */
 router.post('/forgot-password', forgotPassword);
 
@@ -139,13 +266,27 @@ router.post('/forgot-password', forgotPassword);
  *             properties:
  *               token:
  *                 type: string
+ *                 description: "Token recibido por correo"
  *               newPassword:
  *                 type: string
+ *                 description: "Nueva contraseña (mínimo 6 caracteres)"
+ *                 minLength: 6
  *     responses:
  *       200:
  *         description: "Contraseña restablecida correctamente"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
  *       400:
  *         description: "Token inválido o expirado / contraseña inválida"
+ *       500:
+ *         description: "Error interno al restablecer la contraseña"
  */
 router.post('/reset-password', resetPassword);
 
@@ -166,18 +307,58 @@ router.post('/reset-password', resetPassword);
  *             properties:
  *               token:
  *                 type: string
+ *                 description: "Token JWT o token de recuperación"
  *     responses:
  *       200:
  *         description: "Token válido"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 userId:
+ *                   type: integer
+ *                 rol:
+ *                   type: string
+ *                 nombre:
+ *                   type: string
  *       400:
  *         description: "Token inválido o expirado"
+ *       500:
+ *         description: "Error al verificar el token"
  */
 router.post('/verify-token', verifyToken);
 
 /**
- * Ruta opcional para obtener el token desde la URL
- * Esto no reemplaza reset-password POST, solo devuelve el token recibido
- * útil para debug o frontend React Router
+ * @swagger
+ * /auth/reset-password/{token}:
+ *   get:
+ *     summary: "Obtiene token de recuperación desde URL (para frontend)"
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: "Token recibido correctamente"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                 message:
+ *                   type: string
  */
 router.get('/reset-password/:token', (req, res) => {
   res.json({

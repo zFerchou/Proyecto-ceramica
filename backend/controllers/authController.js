@@ -55,6 +55,7 @@ export const login = async (req, res) => {
       userId: user.id,
       email: user.email,
       nombre: user.nombre,
+      rol: user.rol, // Incluir rol en la respuesta inicial
     });
   } catch (error) {
     console.error('Error en login:', error);
@@ -63,7 +64,7 @@ export const login = async (req, res) => {
 };
 
 // ======================================================
-//  VERIFICAR 2FA (segunda fase del login)
+//  VERIFICAR 2FA (segunda fase del login) - ACTUALIZADO
 // ======================================================
 export const verify2FA = async (req, res) => {
   try {
@@ -95,14 +96,37 @@ export const verify2FA = async (req, res) => {
 
     const user = result.rows[0];
 
-    // Crear token JWT
+    // **NORMALIZAR EL ROL (convertir a minúscula para consistencia)**
+    const normalizedRol = user.rol ? user.rol.toLowerCase() : 'empleado';
+
+    // **CREAR TOKEN JWT CON MÁS INFORMACIÓN - ACTUALIZADO**
     const token = jwt.sign(
-      { userId: user.id, email: user.email, rol: user.rol },
+      { 
+        userId: user.id,           // ID del usuario (CRÍTICO para ventas)
+        id: user.id,               // Compatibilidad con código existente
+        email: user.email,         // Email del usuario
+        rol: normalizedRol,        // Normalizado a minúscula: 'admin' o 'empleado'
+        nombre: user.nombre,       // Nombre completo del usuario
+        rolOriginal: user.rol      // Mantener el original por si acaso
+      },
       process.env.JWT_SECRET || 'secreto_super_seguro',
       { expiresIn: '24h' }
     );
 
-    res.json({ success: true, token, user });
+    // Enviar rol normalizado en la respuesta
+    const responseUser = {
+      id: user.id,
+      nombre: user.nombre,
+      email: user.email,
+      rol: normalizedRol
+    };
+
+    res.json({ 
+      success: true, 
+      token, 
+      user: responseUser,
+      message: 'Autenticación exitosa'
+    });
   } catch (error) {
     console.error('Error en verify2FA:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -256,12 +280,16 @@ export const verifyToken = async (req, res) => {
     if (token.split('.').length === 3) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secreto_super_seguro');
+        // Normalizar el rol en la verificación también
+        const normalizedRol = decoded.rol ? decoded.rol.toLowerCase() : 'empleado';
+        
         return res.json({
           success: true,
           message: 'Token válido (JWT)',
           email: decoded.email,
           userId: decoded.userId,
-          rol: decoded.rol,
+          rol: normalizedRol,
+          nombre: decoded.nombre,
         });
       } catch (err) {
         const msg = err.name === 'TokenExpiredError' ? 'Token expirado' : 'Token inválido';

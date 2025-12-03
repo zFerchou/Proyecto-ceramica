@@ -4,7 +4,8 @@ import Barcode from "react-barcode";
 import RegisterProductModal from "./RegisterProductModal";
 import UpdateStockModal from "./UpdateStockModal";
 import ConfirmModal from "./ConfirmModal";
-import api, { API_BASE } from "../api/api";
+import api from "../api/api";
+import { API_BASE } from "../api/api";
 import CategoriesModal from "./CategoriesModal";
 import Marco from "../images/Marco.png";
 
@@ -191,9 +192,8 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
   useEffect(() => {
     const loadCategorias = async () => {
       try {
-        const res = await api.getCategorias();
-        if (res.ok) {
-          const data = await res.json();
+        const data = await api.getCategorias(); // CORRECCIÓN: Directamente devuelve datos
+        if (Array.isArray(data)) {
           setCategorias(data);
         }
       } catch (err) {
@@ -226,18 +226,16 @@ function EditProductModal({ isOpen, onClose, producto, onSuccess, setMessage }) 
     setError(null);
 
     try {
-      const res = await api.patchActualizarProducto(producto.id_producto, formData);
+      const result = await api.patchActualizarProducto(producto.id_producto, formData);
       
-      if (res.ok) {
-        const result = await res.json();
+      if (result) {
         onSuccess(producto.nombre);
         onClose();
       } else {
-        const errorData = await res.json().catch(() => ({ error: 'Error al actualizar' }));
-        setError(errorData.error || 'Error al actualizar el producto');
+        setError('Error al actualizar el producto');
       }
     } catch (err) {
-      setError('Error de conexión al actualizar el producto');
+      setError(err.message || 'Error de conexión al actualizar el producto');
     } finally {
       setLoading(false);
     }
@@ -365,38 +363,37 @@ export default function InventoryPage({ onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [lastRegisteredProduct, setLastRegisteredProduct] = useState(null);
   
-  // Estados para los nuevos modales
   const [actionsModalProduct, setActionsModalProduct] = useState(null);
   const [deleteModalProduct, setDeleteModalProduct] = useState(null);
   const [editModalProduct, setEditModalProduct] = useState(null);
   const [labelQuantities, setLabelQuantities] = useState({});
 
-  // Estados para los modales de éxito - CORREGIDOS
   const [showEditSuccessModal, setShowEditSuccessModal] = useState(false);
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
   const [showPrintSuccessModal, setShowPrintSuccessModal] = useState(false);
   const [successModalData, setSuccessModalData] = useState({});
 
-  // NUEVO: Estado para actualización de categorías
   const [categoriesRefreshTrigger, setCategoriesRefreshTrigger] = useState(0);
 
-  // Cargar productos del backend
+  // Cargar productos del backend - CORREGIDO
   const load = async () => {
     try {
-      const res = await api.getProductos();
-      const body = await res.json().catch(() => null);
-      if (res.ok && Array.isArray(body)) {
-        setProductos(body);
-        setFilteredProductos(body);
+      const data = await api.getProductos(); // CORRECCIÓN: Directamente devuelve datos
+      if (Array.isArray(data)) {
+        setProductos(data);
+        setFilteredProductos(data);
         
         const initialQuantities = {};
-        body.forEach(producto => {
+        data.forEach(producto => {
           initialQuantities[producto.id_producto] = '';
         });
         setLabelQuantities(initialQuantities);
+      } else {
+        console.error("Datos no válidos recibidos:", data);
       }
     } catch (err) {
       console.error("Error al cargar productos:", err);
+      setMessage("Error al cargar productos: " + err.message);
     }
   };
 
@@ -404,7 +401,6 @@ export default function InventoryPage({ onClose }) {
     load();
   }, []);
 
-  // Filtrar productos por nombre
   useEffect(() => {
     const filtered = productos.filter((p) =>
       p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
@@ -412,27 +408,23 @@ export default function InventoryPage({ onClose }) {
     setFilteredProductos(filtered);
   }, [searchTerm, productos]);
 
-  // 💾 Manejo de registro de producto - FLUJO CORREGIDO
   const handleRegisterSuccess = (body) => {
     setLastRegisteredProduct(body);
     setShowRegister(false);
-    setShowSuccessModal(true); // Primero mostrar modal de éxito
+    setShowSuccessModal(true);
     load();
   };
 
-  // Funciones para el modal de éxito
   const handleContinueRegister = () => {
     setShowSuccessModal(false);
-    setShowRegister(true); // Volver a abrir el modal de registro
+    setShowRegister(true);
   };
 
   const handleGoToInventory = () => {
     setShowSuccessModal(false);
-    // El usuario puede decidir qué hacer después
-    setShowConfirm(true); // Ahora mostrar el modal "¿Qué deseas hacer?"
+    setShowConfirm(true);
   };
 
-  // 🛠️ Funciones para el modal de confirmación "¿Qué deseas hacer?"
   const handleConfirmRegister = () => {
     setShowConfirm(false);
     setShowRegister(true);
@@ -448,18 +440,16 @@ export default function InventoryPage({ onClose }) {
   };
 
   const handleUpdateSuccess = () => {
-    // Mostrar modal de éxito para actualización de stock
     setSuccessModalData({
       title: "✅ Stock Actualizado",
       message: "El stock de los productos ha sido actualizado exitosamente.",
       buttonText: "📦 Ver Inventario"
     });
     setShowUpdateStock(false);
-    setShowEditSuccessModal(true); // Reutilizamos el modal de edición para stock
+    setShowEditSuccessModal(true);
     load();
   };
 
-  // Funciones para el modal de acciones
   const openActionsModal = (producto) => {
     setActionsModalProduct(producto);
   };
@@ -468,7 +458,6 @@ export default function InventoryPage({ onClose }) {
     setActionsModalProduct(null);
   };
 
-  // Funciones para eliminar - CORREGIDAS
   const openDeleteModal = (producto) => {
     setDeleteModalProduct(producto);
     closeActionsModal();
@@ -480,29 +469,25 @@ export default function InventoryPage({ onClose }) {
 
   const handleDeleteProduct = async (producto) => {
     try {
-      const res = await api.deleteProducto(producto.nombre);
+      const result = await api.deleteProducto(producto.nombre);
       
-      if (res.ok) {
-        const result = await res.json();
-        // Mostrar modal de éxito en lugar de mensaje - CORREGIDO
+      if (result && !result.error) {
         setSuccessModalData({
           title: "✅ Producto Eliminado",
           message: `El producto "${producto.nombre}" ha sido eliminado exitosamente del sistema.`,
           buttonText: "📦 Ver Inventario"
         });
-        setShowDeleteSuccessModal(true); // ESTA LÍNEA FALTABA
+        setShowDeleteSuccessModal(true);
         closeDeleteModal();
         load();
       } else {
-        const errorData = await res.json().catch(() => ({ error: 'Error al eliminar' }));
-        setMessage("❌ " + (errorData.error || 'Error al eliminar el producto'));
+        setMessage("❌ " + (result?.error || 'Error al eliminar el producto'));
       }
     } catch (err) {
-      setMessage("❌ Error de conexión al eliminar el producto");
+      setMessage("❌ Error de conexión al eliminar el producto: " + err.message);
     }
   };
 
-  // Funciones para editar - CORREGIDAS
   const openEditModal = (producto) => {
     setEditModalProduct(producto);
     closeActionsModal();
@@ -513,31 +498,27 @@ export default function InventoryPage({ onClose }) {
   };
 
   const handleEditSuccess = (productName) => {
-    // Mostrar modal de éxito en lugar de mensaje - CORREGIDO
     setSuccessModalData({
       title: "✅ Producto Actualizado",
       message: `El producto "${productName}" ha sido actualizado exitosamente.`,
       buttonText: "📦 Ver Cambios"
     });
-    setShowEditSuccessModal(true); // ESTA LÍNEA FALTABA
+    setShowEditSuccessModal(true);
     load();
   };
 
-  // Función para imprimir etiquetas - CORREGIDA
   const handlePrintLabels = (producto) => {
     const quantity = parseInt(labelQuantities[producto.id_producto]) || 1;
     const validQuantity = Math.max(1, Math.min(300, quantity));
 
-    // Mostrar modal de éxito primero - CORREGIDO
     setSuccessModalData({
       title: "🖨️ Etiquetas Generadas",
       message: `Se han generado ${validQuantity} etiquetas para "${producto.nombre}". La ventana de impresión se abrirá automáticamente.`,
       buttonText: "✅ Entendido"
     });
-    setShowPrintSuccessModal(true); // ESTA LÍNEA FALTABA
+    setShowPrintSuccessModal(true);
     closeActionsModal();
 
-    // Abrir ventana de impresión después de un breve delay
     setTimeout(() => {
       const printWindow = window.open('', '_blank');
       printWindow.document.write(`
@@ -547,7 +528,6 @@ export default function InventoryPage({ onClose }) {
           <title>Etiquetas - ${producto.nombre}</title>
           <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
           <style>
-            /* Página optimizada para alta densidad */
             @page { margin: 6mm; }
             body { 
               font-family: Arial, sans-serif; 
@@ -560,7 +540,7 @@ export default function InventoryPage({ onClose }) {
               justify-content: flex-start;
             }
             .label {
-              width: 48mm; /* Tamaño cercano a etiqueta de rollo estándar */
+              width: 48mm;
               height: 30mm;
               border: 0.3mm solid #000;
               padding: 2mm 2mm 1mm 2mm;
@@ -634,7 +614,6 @@ export default function InventoryPage({ onClose }) {
     }, 1000);
   };
 
-  // Manejar cambio en la cantidad de etiquetas
   const handleQuantityChange = (productId, value) => {
     if (value === '') {
       setLabelQuantities(prev => ({
@@ -653,9 +632,7 @@ export default function InventoryPage({ onClose }) {
     }
   };
 
-  // NUEVO: Manejar actualizaciones de categorías desde el modal
   const handleCategoriesUpdate = () => {
-    // Forzar recarga de categorías en todos los componentes que las usen
     setCategoriesRefreshTrigger(prev => prev + 1);
   };
 
@@ -702,7 +679,6 @@ export default function InventoryPage({ onClose }) {
 
       {message && <div style={styles.message}>{message}</div>}
 
-      {/* Tabla de productos */}
       <table style={styles.table}>
         <thead>
           <tr>
@@ -790,7 +766,6 @@ export default function InventoryPage({ onClose }) {
         </tbody>
       </table>
 
-      {/* Modales existentes */}
       {showRegister && (
         <RegisterProductModal
           onClose={() => setShowRegister(false)}
@@ -804,7 +779,6 @@ export default function InventoryPage({ onClose }) {
         />
       )}
 
-      {/* NUEVO: Modal de Éxito para Registro */}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={handleGoToInventory}
@@ -812,7 +786,6 @@ export default function InventoryPage({ onClose }) {
         onContinue={handleContinueRegister}
       />
 
-      {/* Modal de Confirmación "¿Qué deseas hacer?" - AHORA SE MUESTRA DESPUÉS DEL ÉXITO */}
       {showConfirm && (
         <ConfirmModal
           isOpen={showConfirm}
@@ -824,7 +797,6 @@ export default function InventoryPage({ onClose }) {
         />
       )}
 
-      {/* Modal de Categorías - ACTUALIZADO */}
       {showCategoriesModal && (
         <CategoriesModal
           isOpen={showCategoriesModal}
@@ -834,7 +806,6 @@ export default function InventoryPage({ onClose }) {
         />
       )}
 
-      {/* Nuevos Modales de Acciones */}
       <ProductActionsModal
         isOpen={!!actionsModalProduct}
         onClose={closeActionsModal}
@@ -859,7 +830,6 @@ export default function InventoryPage({ onClose }) {
         setMessage={setMessage}
       />
 
-      {/* NUEVOS: Modales de Éxito para todas las acciones - CORREGIDOS */}
       <ActionSuccessModal
         isOpen={showEditSuccessModal}
         onClose={() => setShowEditSuccessModal(false)}
@@ -888,7 +858,6 @@ export default function InventoryPage({ onClose }) {
   );
 }
 
-// 🎨 Estilos para los modales (basados en el modal de reportes)
 const modalStyles = {
   overlay: {
     position: 'fixed',
@@ -914,7 +883,7 @@ const modalStyles = {
     fontFamily: '"Poppins", sans-serif',
     animation: 'fadeIn 0.3s ease-in-out',
     backgroundImage: `url(${Marco})`,
-    backgroundSize: '100% 100%', // ajusta el marco exactamente al tamaño del modal
+    backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center'
   },
@@ -955,7 +924,6 @@ const modalStyles = {
     transition: 'all 0.3s ease',
     fontSize: '0.9rem',
   },
-  // NUEVO: Estilo específico para inputs numéricos sin flechas
   numberInput: {
     padding: '0.6rem',
     borderRadius: '6px',
@@ -965,7 +933,6 @@ const modalStyles = {
     outline: 'none',
     transition: 'all 0.3s ease',
     fontSize: '0.9rem',
-    // Eliminar flechas en todos los navegadores
     MozAppearance: 'textfield',
     WebkitAppearance: 'none',
     appearance: 'textfield',
@@ -1049,7 +1016,6 @@ const modalStyles = {
     fontSize: '1rem',
     lineHeight: '1.4',
   },
-  // Estilos para el modal de éxito
   successContent: {
     textAlign: 'center',
     padding: '1rem',
@@ -1072,7 +1038,6 @@ const modalStyles = {
   },
 };
 
-// 🎨 Estilos existentes
 const styles = {
   container: {
     backgroundColor: "#f5f1e3",
@@ -1083,10 +1048,6 @@ const styles = {
     maxWidth: "1100px",
     margin: "2rem auto",
     fontFamily: '"Poppins", sans-serif',
-    //backgroundImage: `url(${Marco})`,
-    backgroundSize: "100%", // o "100% 100%" si el marco es ajustado
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "center"
   },
   title: { textAlign: "center", color: "#3e2c1c", fontSize: "2rem", marginBottom: "1.5rem" },
   actionsRow: { display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" },
@@ -1118,14 +1079,12 @@ const styles = {
     fontSize: "0.8rem",
     color: "#6b4f3b"
   },
-  // CAMBIADO: Input de cantidad sin flechas y con placeholder
   quantityInput: {
     width: "60px",
     padding: "0.3rem",
     border: "1px solid #c2a878",
     borderRadius: "4px",
     textAlign: "center",
-    // Eliminar flechas en todos los navegadores
     MozAppearance: 'textfield',
     WebkitAppearance: 'none',
     appearance: 'textfield',
@@ -1141,20 +1100,3 @@ const styles = {
     transition: "all 0.3s ease"
   }
 };
-
-// Agregar estilos CSS globales para eliminar flechas en todos los inputs numéricos
-const style = document.createElement('style');
-style.textContent = `
-  /* Eliminar flechas en todos los inputs numéricos */
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  
-  input[type="number"] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
-`;
-document.head.appendChild(style);

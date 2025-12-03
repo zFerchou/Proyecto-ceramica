@@ -1,191 +1,234 @@
-// Simple API helper
+// api/api.js - VERSIÓN CORREGIDA
 export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3000';
 
+// Función helper para headers con autenticación
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
+// Función helper para manejar respuestas
+const handleResponse = async (response) => {
+  const text = await response.text();
+  try {
+    const data = text ? JSON.parse(text) : {};
+    if (!response.ok) throw new Error(data.error || data.message || `Error ${response.status}`);
+    return data;
+  } catch (err) {
+    throw new Error(text || err.message);
+  }
+};
+
 // Productos
-export async function postProducto(data, file) {
+export const postProducto = async (data, file) => {
   const hasFile = !!file;
   if (hasFile) {
     const form = new FormData();
     Object.entries(data || {}).forEach(([k, v]) => form.append(k, v ?? ""));
     form.append('imagen', file);
-    return fetch(`${API_BASE}/api/productos`, {
+    
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    
+    const res = await fetch(`${API_BASE}/api/productos`, {
       method: 'POST',
       body: form,
+      headers
     });
+    return handleResponse(res);
   } else {
-    return fetch(`${API_BASE}/api/productos`, {
+    const res = await fetch(`${API_BASE}/api/productos`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
+    return handleResponse(res);
   }
-}
+};
 
-export async function putActualizarStock(id_producto, data) {
+export const putActualizarStock = async (id_producto, data) => {
   const res = await fetch(`${API_BASE}/api/productos/${id_producto}/stock`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-export async function postActualizarStockPorCodigo(codigo, data) {
+export const postActualizarStockPorCodigo = async (codigo, data) => {
   const res = await fetch(`${API_BASE}/api/productos/stock-por-codigo`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ codigo, ...data }),
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-export async function getProductos() {
-  const res = await fetch(`${API_BASE}/api/productos`);
-  return res;
-}
-
-// CORREGIDO: Usar ruta por nombre en lugar de ID
-export async function deleteProducto(nombre) {
-  const res = await fetch(`${API_BASE}/api/productos/nombre/${encodeURIComponent(nombre)}`, { 
-    method: 'DELETE' 
+export const getProductos = async () => {
+  const res = await fetch(`${API_BASE}/api/productos`, {
+    headers: getAuthHeaders()
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-// CORREGIDO: Usar ruta por nombre en lugar de ID
-export async function patchActualizarDetalles(nombre, data) {
+export const deleteProducto = async (nombre) => {
+  const res = await fetch(`${API_BASE}/api/productos/nombre/${encodeURIComponent(nombre)}`, { 
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+export const patchActualizarDetalles = async (nombre, data) => {
   const res = await fetch(`${API_BASE}/api/productos/nombre/${encodeURIComponent(nombre)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-// NUEVO: Actualizar producto por ID (endpoint directo)
-export async function patchActualizarProducto(id_producto, data) {
+export const patchActualizarProducto = async (id_producto, data) => {
   const res = await fetch(`${API_BASE}/api/productos/${id_producto}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-// --- Ventas (Sales) API helpers
-export async function postVenta(payload) {
-  return fetch(`${API_BASE}/api/ventas`, {
+// Ventas
+export const postVenta = async (payload) => {
+  const res = await fetch(`${API_BASE}/api/ventas`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
-  }).then(r => r.json());
-}
+  });
+  return handleResponse(res);
+};
 
-export async function getVenta(query) {
+export const getVenta = async (query) => {
   const qs = new URLSearchParams(query).toString();
-  return fetch(`${API_BASE}/api/ventas?${qs}`).then(r => r.json());
-}
+  const res = await fetch(`${API_BASE}/api/ventas?${qs}`, {
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
 
-// NUEVO: Obtener todas las ventas
-export async function getVentas(query) {
+export const getVentas = async (query) => {
   try {
     const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
-    const res = await fetch(`${API_BASE}/api/ventas/all${qs}`);
-    if (!res.ok) {
-      const text = await res.text();
-      return { error: text || `Error ${res.status}` };
-    }
-    try {
-      const data = await res.json();
-      return data;
-    } catch (err) {
-      const text = await res.text();
-      return { error: 'Respuesta no es JSON: ' + text };
-    }
+    const res = await fetch(`${API_BASE}/api/ventas/all${qs}`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
   } catch (err) {
     return { error: err.message };
   }
-}
+};
 
-// Reporte de ventas por rango de fechas
-export async function getReporteVentas({ fecha_inicio, fecha_fin }) {
+export const getMisEstadisticas = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/ventas/mis-estadisticas`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
+  } catch (err) {
+    return { error: err.message };
+  }
+};
+
+export const getReporteVentas = async ({ fecha_inicio, fecha_fin }) => {
   const qs = new URLSearchParams({ fecha_inicio, fecha_fin }).toString();
   try {
-    const res = await fetch(`${API_BASE}/api/ventas/reporte?${qs}`);
-    if (!res.ok) {
-      const text = await res.text();
-      return { error: text || `Error ${res.status}` };
-    }
-    return await res.json();
-  } catch (err) {
-    return { error: err.message };
-  }
-}
-
-// Dashboard: resumen de productos (top, recientes, agotando)
-export async function getProductosResumenDashboard() {
-  try {
-    const res = await fetch(`${API_BASE}/api/dashboard/productos-resumen`);
-    if (!res.ok) {
-      const text = await res.text();
-      return { error: text || `Error ${res.status}` };
-    }
-    return await res.json();
-  } catch (err) {
-    return { error: err.message };
-  }
-}
-
-// --- DELETE usando codigo_venta
-export async function deleteVenta(codigo_venta) {
-  return fetch(`${API_BASE}/api/ventas/deshacer/${codigo_venta}`, { method: 'DELETE' })
-    .then(async r => {
-      try { return await r.json(); } 
-      catch { return { error: 'Error al procesar respuesta' }; }
+    const res = await fetch(`${API_BASE}/api/ventas/reporte?${qs}`, {
+      headers: getAuthHeaders()
     });
-}
+    return handleResponse(res);
+  } catch (err) {
+    return { error: err.message };
+  }
+};
 
-export async function patchAnularProductos(id_venta, payload) {
-  return fetch(`${API_BASE}/api/ventas/${id_venta}/productos`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then(async r => {
-    try { return await r.json(); } 
-    catch { return { error: 'Error al procesar respuesta' }; }
+export const getProductosResumenDashboard = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/dashboard/productos-resumen`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
+  } catch (err) {
+    return { error: err.message };
+  }
+};
+
+export const deleteVenta = async (codigo_venta) => {
+  const res = await fetch(`${API_BASE}/api/ventas/deshacer/${codigo_venta}`, { 
+    method: 'DELETE',
+    headers: getAuthHeaders()
   });
-}
+  return handleResponse(res);
+};
 
-// --- Categorías API helpers ---
-export async function getCategorias() {
-  const res = await fetch(`${API_BASE}/api/categorias`);
-  return res;
-}
+export const patchAnularProductos = async (id_venta, payload) => {
+  const res = await fetch(`${API_BASE}/api/ventas/${id_venta}/productos`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
 
-export async function postCategoria(data) {
+// Categorías
+export const getCategorias = async () => {
+  const res = await fetch(`${API_BASE}/api/categorias`, {
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+export const postCategoria = async (data) => {
   const res = await fetch(`${API_BASE}/api/categorias`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-export async function putCategoria(id, data) {
+export const putCategoria = async (id, data) => {
   const res = await fetch(`${API_BASE}/api/categorias/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return res;
-}
+  return handleResponse(res);
+};
 
-export async function deleteCategoria(id) {
+export const deleteCategoria = async (id) => {
   const res = await fetch(`${API_BASE}/api/categorias/${id}`, { 
-    method: 'DELETE' 
+    method: 'DELETE',
+    headers: getAuthHeaders()
   });
-  return res;
-}
+  return handleResponse(res);
+};
+
+export const verifyCurrentToken = async () => {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    if (!token) throw new Error('No hay token disponible');
+    
+    const res = await fetch(`${API_BASE}/api/auth/verify`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return handleResponse(res);
+  } catch (err) {
+    throw new Error('Error verificando token: ' + err.message);
+  }
+};
 
 // --- API Object ---
 const api = {
@@ -196,12 +239,13 @@ const api = {
   getProductos,
   deleteProducto,
   patchActualizarDetalles,
-  patchActualizarProducto, // NUEVO: Agregado al objeto API
+  patchActualizarProducto,
   
   // Ventas
   postVenta,
   getVenta,
   getVentas,
+  getMisEstadisticas,
   getReporteVentas,
   deleteVenta,
   patchAnularProductos,
@@ -213,7 +257,10 @@ const api = {
   getCategorias,
   postCategoria,
   putCategoria,
-  deleteCategoria
+  deleteCategoria,
+  
+  // Auth
+  verifyCurrentToken
 };
 
 export default api;

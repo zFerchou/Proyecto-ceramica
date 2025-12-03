@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api/api';
+import api from '../api/api'; // Importar api
 import Marco from "../images/Marco.png";
-
-// Categorías base protegidas
-const CATEGORIAS_BASE = {
-  1: { nombre: "Joyería", icon: "💎", color: "#B0836A" },
-  2: { nombre: "Macetas", icon: "🏺", color: "#8A9B68" }, 
-  3: { nombre: "Productos de cocina", icon: "🍽️", color: "#C44536" }
-};
 
 const CATEGORIAS_PROTEGIDAS = [1, 2, 3];
 
@@ -18,41 +11,36 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
   const [editingCategory, setEditingCategory] = useState(null);
   const [formData, setFormData] = useState({ nombre: '', descripcion: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [message, setMessage] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoriaToDelete, setCategoriaToDelete] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notificationData, setNotificationData] = useState({ type: '', message: '', categoriaProducto: null });
 
-  // Verificar si una categoría es protegida
   const isCategoriaProtegida = (idCategoria) => {
     return CATEGORIAS_PROTEGIDAS.includes(idCategoria);
   };
 
-  // Mostrar notificación en modal
   const showNotification = (type, message, categoriaProducto = null) => {
     setNotificationData({ type, message, categoriaProducto });
     setShowNotificationModal(true);
   };
 
-  // Cerrar modal de notificación
   const closeNotification = () => {
     setShowNotificationModal(false);
     setNotificationData({ type: '', message: '', categoriaProducto: null });
   };
 
-  // Cargar categorías
+  // Cargar categorías - CORREGIDO
   const loadCategorias = async () => {
     try {
-      const res = await api.getCategorias();
-      if (res.ok) {
-        const data = await res.json();
+      const data = await api.getCategorias(); // api.getCategorias() devuelve datos directamente
+      if (Array.isArray(data)) {
         setCategorias(data);
       } else {
         showNotification('error', 'Error al cargar categorías');
       }
     } catch (err) {
+      console.error('Error cargando categorías:', err);
       showNotification('error', 'Error de conexión al cargar categorías');
     }
   };
@@ -60,14 +48,10 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
   useEffect(() => {
     if (isOpen) {
       loadCategorias();
-      setError(null);
-      setMessage(null);
     }
   }, [isOpen, refreshTrigger]);
 
-  // Iniciar edición de categoría
   const handleEditClick = (categoria) => {
-    // Verificar si es categoría protegida
     if (isCategoriaProtegida(categoria.id_categoria)) {
       showNotification('warning', `La categoría "${categoria.nombre}" es una categoría base y no se puede editar.`);
       return;
@@ -82,38 +66,35 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
     setShowAddForm(false);
   };
 
-  // Cancelar edición
   const handleCancelEdit = () => {
     setShowEditForm(false);
     setEditingCategory(null);
     setFormData({ nombre: '', descripcion: '' });
   };
 
-  // Guardar cambios de edición
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     try {
-      const res = await api.putCategoria(editingCategory.id_categoria, formData);
-      if (res.ok) {
-        const result = await res.json();
+      // CORRECCIÓN: api.putCategoria devuelve datos directamente
+      const result = await api.putCategoria(editingCategory.id_categoria, formData);
+      
+      if (result && !result.error) {
         showNotification('success', '✅ Categoría actualizada exitosamente');
         setFormData({ nombre: '', descripcion: '' });
         setShowEditForm(false);
         setEditingCategory(null);
         loadCategorias();
         
-        // Notificar al componente padre que las categorías fueron actualizadas
         if (typeof onCategorySelect === 'function') {
-          onCategorySelect('updated', result.categoria);
+          onCategorySelect('updated', result);
         }
       } else {
-        const errorData = await res.json().catch(() => ({ error: 'Error al actualizar categoría' }));
-        showNotification('error', errorData.error || 'Error al actualizar categoría');
+        showNotification('error', result?.error || 'Error al actualizar categoría');
       }
     } catch (err) {
+      console.error('Error actualizando categoría:', err);
       showNotification('error', 'Error de conexión al actualizar categoría');
     } finally {
       setLoading(false);
@@ -123,38 +104,35 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     try {
-      const res = await api.postCategoria(formData);
-      if (res.ok) {
-        const result = await res.json();
+      // CORRECCIÓN: api.postCategoria devuelve datos directamente
+      const result = await api.postCategoria(formData);
+      
+      if (result && !result.error) {
         showNotification('success', '✅ Categoría creada exitosamente');
         setFormData({ nombre: '', descripcion: '' });
         setShowAddForm(false);
         loadCategorias();
         
-        // Notificar al componente padre que las categorías fueron actualizadas
         if (typeof onCategorySelect === 'function') {
-          onCategorySelect('created', result.categoria);
+          onCategorySelect('created', result);
         }
       } else {
-        const errorData = await res.json().catch(() => ({ error: 'Error al crear categoría' }));
-        showNotification('error', errorData.error || 'Error al crear categoría');
+        showNotification('error', result?.error || 'Error al crear categoría');
       }
     } catch (err) {
+      console.error('Error creando categoría:', err);
       showNotification('error', 'Error de conexión al crear categoría');
     } finally {
       setLoading(false);
     }
   };
 
-  // Verificar si una categoría tiene productos asociados
   const checkCategoriaHasProducts = async (idCategoria) => {
     try {
-      const res = await api.getProductos();
-      if (res.ok) {
-        const productos = await res.json();
+      const productos = await api.getProductos(); // api.getProductos() devuelve datos directamente
+      if (Array.isArray(productos)) {
         const productosEnCategoria = productos.filter(producto => 
           producto.id_categoria === idCategoria
         );
@@ -168,7 +146,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
   };
 
   const handleDeleteClick = async (categoria) => {
-    // Verificar si es una categoría protegida
     if (isCategoriaProtegida(categoria.id_categoria)) {
       showNotification(
         'warning', 
@@ -178,11 +155,9 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
       return;
     }
 
-    // Verificar si la categoría tiene productos antes de eliminar
     const productosAsociados = await checkCategoriaHasProducts(categoria.id_categoria);
     
     if (productosAsociados && productosAsociados.length > 0) {
-      // Mostrar modal de notificación con información de productos
       showNotification(
         'warning', 
         `No se puede eliminar la categoría "${categoria.nombre}" porque tiene productos asociados.`,
@@ -194,7 +169,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
       return;
     }
 
-    // Si no tiene productos y no es protegida, proceder con la eliminación
     setCategoriaToDelete(categoria);
     setShowDeleteModal(true);
   };
@@ -203,20 +177,21 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
     if (!categoriaToDelete) return;
 
     try {
-      const res = await api.deleteCategoria(categoriaToDelete.id_categoria);
-      if (res.ok) {
+      // CORRECCIÓN: api.deleteCategoria devuelve datos directamente
+      const result = await api.deleteCategoria(categoriaToDelete.id_categoria);
+      
+      if (result && !result.error) {
         showNotification('success', '✅ Categoría eliminada exitosamente');
         loadCategorias();
         
-        // Notificar al componente padre que las categorías fueron actualizadas
         if (typeof onCategorySelect === 'function') {
           onCategorySelect('deleted', categoriaToDelete);
         }
       } else {
-        const errorData = await res.json().catch(() => ({ error: 'Error al eliminar categoría' }));
-        showNotification('error', errorData.error || 'Error al eliminar categoría');
+        showNotification('error', result?.error || 'Error al eliminar categoría');
       }
     } catch (err) {
+      console.error('Error eliminando categoría:', err);
       showNotification('error', 'Error de conexión al eliminar categoría');
     } finally {
       setShowDeleteModal(false);
@@ -243,7 +218,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
       <div style={modalStyles.modal}>
         <h2 style={modalStyles.title}>📁 Gestión de Categorías</h2>
 
-        {/* Botón para agregar nueva categoría */}
         {!showAddForm && !showEditForm && (
           <button
             style={modalStyles.buttonPrimary}
@@ -252,12 +226,12 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
               setShowEditForm(false);
               setEditingCategory(null);
             }}
+            disabled={loading}
           >
             ➕ Nueva Categoría
           </button>
         )}
 
-        {/* Formulario para agregar categoría */}
         {showAddForm && (
           <form onSubmit={handleSubmit} style={modalStyles.form}>
             <h3 style={modalStyles.subtitle}>Agregar Nueva Categoría</h3>
@@ -270,6 +244,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                 style={modalStyles.input}
                 required
                 placeholder="Ej: Electrónicos"
+                disabled={loading}
               />
             </label>
             <label style={modalStyles.label}>
@@ -279,6 +254,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                 onChange={(e) => setFormData(prev => ({ ...prev, descripcion: e.target.value }))}
                 style={{...modalStyles.input, minHeight: '80px'}}
                 placeholder="Ej: Productos electrónicos y dispositivos"
+                disabled={loading}
               />
             </label>
             <div style={modalStyles.buttonGroup}>
@@ -296,6 +272,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                   setShowAddForm(false);
                   setFormData({ nombre: '', descripcion: '' });
                 }}
+                disabled={loading}
               >
                 ✖ Cancelar
               </button>
@@ -303,7 +280,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
           </form>
         )}
 
-        {/* Formulario para editar categoría */}
         {showEditForm && (
           <form onSubmit={handleEditSubmit} style={modalStyles.form}>
             <h3 style={modalStyles.subtitle}>Editar Categoría</h3>
@@ -316,6 +292,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                 style={modalStyles.input}
                 required
                 placeholder="Ej: Electrónicos"
+                disabled={loading}
               />
             </label>
             <label style={modalStyles.label}>
@@ -325,6 +302,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                 onChange={(e) => setFormData(prev => ({ ...prev, descripcion: e.target.value }))}
                 style={{...modalStyles.input, minHeight: '80px'}}
                 placeholder="Ej: Productos electrónicos y dispositivos"
+                disabled={loading}
               />
             </label>
             <div style={modalStyles.buttonGroup}>
@@ -339,6 +317,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                 type="button"
                 style={modalStyles.buttonCancel}
                 onClick={handleCancelEdit}
+                disabled={loading}
               >
                 ✖ Cancelar
               </button>
@@ -346,7 +325,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
           </form>
         )}
 
-        {/* Lista de categorías existentes */}
         <div style={modalStyles.categoriesList}>
           <h3 style={modalStyles.subtitle}>Categorías Existentes</h3>
           {categorias.length === 0 ? (
@@ -386,7 +364,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                       handleEditClick(categoria);
                     }}
                     title={isCategoriaProtegida(categoria.id_categoria) ? "Categoría base no editable" : "Editar categoría"}
-                    disabled={isCategoriaProtegida(categoria.id_categoria)}
+                    disabled={isCategoriaProtegida(categoria.id_categoria) || loading}
                   >
                     ✏️
                   </button>
@@ -400,7 +378,7 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
                       handleDeleteClick(categoria);
                     }}
                     title={isCategoriaProtegida(categoria.id_categoria) ? "Categoría base no eliminable" : "Eliminar categoría"}
-                    disabled={isCategoriaProtegida(categoria.id_categoria)}
+                    disabled={isCategoriaProtegida(categoria.id_categoria) || loading}
                   >
                     🗑️
                   </button>
@@ -414,13 +392,13 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
           <button 
             style={modalStyles.buttonCancel}
             onClick={onClose}
+            disabled={loading}
           >
             ✖ Cerrar
           </button>
         </div>
       </div>
 
-      {/* Modal de confirmación para eliminar */}
       {showDeleteModal && (
         <div style={modalStyles.confirmOverlay}>
           <div style={modalStyles.confirmModal}>
@@ -449,12 +427,14 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
               <button 
                 style={modalStyles.confirmDeleteButton}
                 onClick={handleConfirmDelete}
+                disabled={loading}
               >
-                ✅ Aceptar
+                {loading ? 'Eliminando...' : '✅ Aceptar'}
               </button>
               <button 
                 style={modalStyles.buttonCancel}
                 onClick={handleCancelDelete}
+                disabled={loading}
               >
                 ✖ Cancelar
               </button>
@@ -463,7 +443,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
         </div>
       )}
 
-      {/* Modal de notificaciones */}
       {showNotificationModal && (
         <div style={modalStyles.notificationOverlay}>
           <div style={modalStyles.notificationModal}>
@@ -479,7 +458,6 @@ function CategoriesModal({ isOpen, onClose, onCategorySelect, selectedCategory, 
             <div style={modalStyles.notificationContent}>
               <p style={modalStyles.notificationText}>{notificationData.message}</p>
               
-              {/* Mostrar información de productos si la categoría tiene productos */}
               {notificationData.categoriaProducto && notificationData.categoriaProducto.productos && (
                 <div style={modalStyles.productosInfo}>
                   <h4 style={modalStyles.productosTitle}>
@@ -858,36 +836,5 @@ const modalStyles = {
     padding: '1rem',
   }
 };
-
-// Añadir la animación al documento si no esta
-if (typeof document !== 'undefined') {
-  const styleSheet = document.styleSheets[0];
-  const keyframes = `
-  @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  `;
-  
-  let animationExists = false;
-  try {
-    for (let i = 0; i < styleSheet.cssRules.length; i++) {
-      if (styleSheet.cssRules[i].name === 'fadeIn') {
-        animationExists = true;
-        break;
-      }
-    }
-  } catch (e) {
-    animationExists = false;
-  }
-  
-  if (!animationExists) {
-    try {
-      styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
-    } catch (e) {
-      console.log('No se pudo insertar la animación fadeIn:', e);
-    }
-  }
-}
 
 export default CategoriesModal;

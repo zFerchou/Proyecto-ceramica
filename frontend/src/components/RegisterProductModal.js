@@ -4,7 +4,6 @@ import CategoriesModal from './CategoriesModal';
 import Marco from "../images/Marco.png";
 
 export default function RegisterProductModal({ onClose, onSuccess }) {
-  // Permitimos '' para cantidad y precio para que el usuario pueda borrar el 0 inicial fácilmente
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
@@ -20,13 +19,14 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categoriesRefreshTrigger, setCategoriesRefreshTrigger] = useState(0);
 
-  // Cargar categorías del backend
+  // Cargar categorías del backend - CORREGIDO
   const loadCategorias = async () => {
     try {
-      const res = await api.getCategorias();
-      if (res.ok) {
-        const data = await res.json();
+      const data = await api.getCategorias(); // api.getCategorias() ya devuelve datos directamente
+      if (Array.isArray(data)) {
         setCategorias(data);
+      } else {
+        console.error('Error: getCategorias no devolvió un array:', data);
       }
     } catch (err) {
       console.error('Error cargando categorías:', err);
@@ -35,17 +35,17 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
 
   useEffect(() => {
     loadCategorias();
-  }, [categoriesRefreshTrigger]); // Agregar categoriesRefreshTrigger como dependencia
+  }, [categoriesRefreshTrigger]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Para cantidad y precio permitir '' y validar más tarde
+    
     if (name === 'cantidad' || name === 'precio') {
-      // Si el usuario borra todo, dejamos '' en el estado
       const numeric = value === '' ? '' : value;
       setForm(prev => ({ ...prev, [name]: numeric }));
       return;
     }
+    
     if (name === 'id_categoria') {
       setForm(prev => ({ ...prev, id_categoria: value }));
       if (value) {
@@ -56,15 +56,14 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
       }
       return;
     }
+    
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // Limpia el 0 inicial al enfocar si está en '0' o '0.00'
   const handleNumericFocus = (e) => {
     const { name, value } = e.target;
     if ((name === 'cantidad' || name === 'precio') && (value === '0' || value === '0.0' || value === '0.00')) {
       setForm(prev => ({ ...prev, [name]: '' }));
-      // Usar setTimeout para esperar a que React actualice antes de cambiar el valor del input directamente
       setTimeout(() => { e.target.value = ''; }, 0);
     }
   };
@@ -73,38 +72,53 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    
     try {
       // Validaciones básicas antes de construir payload
       const cantidadValida = form.cantidad !== '' && !isNaN(Number(form.cantidad));
       const precioValido = form.precio !== '' && !isNaN(Number(form.precio));
+      
       if (!cantidadValida || !precioValido) {
         setError({ error: 'Cantidad y precio son obligatorios' });
         setLoading(false);
         return;
       }
+      
+      // Validar que el nombre no esté vacío
+      if (!form.nombre.trim()) {
+        setError({ error: 'El nombre del producto es obligatorio' });
+        setLoading(false);
+        return;
+      }
+      
       const payload = {
         ...form,
         cantidad: Number.parseInt(form.cantidad, 10),
         precio: Number.parseFloat(form.precio),
         id_categoria: form.id_categoria ? Number.parseInt(form.id_categoria, 10) : null,
       };
-      const res = await api.postProducto(payload, file);
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(body || { error: 'Error desconocido' });
-      } else {
+      
+      console.log('Enviando producto:', payload, 'Archivo:', file);
+      
+      // CORRECCIÓN: api.postProducto devuelve datos directamente
+      const result = await api.postProducto(payload, file);
+      
+      if (result && !result.error) {
         // SOLO llamar al callback de éxito y cerrar el modal
-        onSuccess(body);
-        onClose(); // Cerrar el modal de registro
+        console.log('Producto creado exitosamente:', result);
+        onSuccess(result);
+        onClose();
+      } else {
+        setError({ error: result?.error || 'Error al crear producto' });
       }
     } catch (err) {
-      setError({ error: err.message });
+      console.error('Error en handleSubmit:', err);
+      setError({ error: err.message || 'Error al crear producto' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Manejar selección de categoría y actualizaciones
   const handleCategoryAction = (action, categoria) => {
     switch (action) {
       case 'selected':
@@ -119,10 +133,9 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
       case 'created':
       case 'updated':
       case 'deleted':
-        // Forzar recarga de categorías cuando se crean, editan o eliminan
+        // Forzar recarga de categorías
         setCategoriesRefreshTrigger(prev => prev + 1);
         
-        // Si se creó una nueva categoría, seleccionarla automáticamente
         if (action === 'created' && categoria) {
           setSelectedCategory(categoria);
           setForm(prev => ({
@@ -131,7 +144,6 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
           }));
         }
         
-        // Si se eliminó la categoría seleccionada, limpiar la selección
         if (action === 'deleted' && selectedCategory && 
             selectedCategory.id_categoria === categoria.id_categoria) {
           setSelectedCategory(null);
@@ -150,7 +162,11 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
         <div style={styles.modal}>
           <h2 style={styles.title}>🧾 Registrar producto</h2>
 
-          {error && <div style={styles.errorBox}>{JSON.stringify(error)}</div>}
+          {error && (
+            <div style={styles.errorBox}>
+              {typeof error === 'object' ? JSON.stringify(error) : error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={styles.form}>
             <label style={styles.label}>
@@ -162,6 +178,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                 onChange={handleChange}
                 placeholder="Ej. jarron"
                 required
+                disabled={loading}
               />
             </label>
 
@@ -173,6 +190,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                 value={form.descripcion}
                 onChange={handleChange}
                 placeholder="Detalles del producto"
+                disabled={loading}
               />
             </label>
 
@@ -189,6 +207,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                   min="0"
                   placeholder="0"
                   required
+                  disabled={loading}
                 />
               </label>
 
@@ -205,6 +224,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                   min="0"
                   placeholder="0.00"
                   required
+                  disabled={loading}
                 />
               </label>
             </div>
@@ -217,6 +237,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                   name="id_categoria"
                   value={form.id_categoria}
                   onChange={handleChange}
+                  disabled={loading}
                 >
                   <option value="">Seleccionar categoría</option>
                   {categorias.map((cat) => (
@@ -229,6 +250,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                   type="button"
                   style={styles.buttonSecondary}
                   onClick={() => setShowCategoriesModal(true)}
+                  disabled={loading}
                 >
                   📁 Gestionar
                 </button>
@@ -248,6 +270,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
+                disabled={loading}
               />
             </label>
 
@@ -263,13 +286,13 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                 type="button"
                 style={styles.buttonCancel}
                 onClick={onClose}
+                disabled={loading}
               >
                 ✖ Cancelar
               </button>
             </div>
           </form>
 
-          {/* Modal de categorías - ACTUALIZADO */}
           {showCategoriesModal && (
             <CategoriesModal
               isOpen={showCategoriesModal}
@@ -285,7 +308,6 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
   );
 }
 
-// 🎨 Estilos café-caqui (sin cambios en los estilos)
 const styles = {
   overlay: {
     position: 'fixed',
@@ -390,5 +412,6 @@ const styles = {
     borderRadius: '6px',
     marginBottom: '1rem',
     fontSize: '0.9rem',
+    wordBreak: 'break-word',
   },
 };

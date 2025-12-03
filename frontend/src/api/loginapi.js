@@ -1,23 +1,28 @@
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3000';
+// api/loginapi.js
+export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3000';
+
+// Función helper para manejar respuestas
+const handleResponse = async (response) => {
+  const text = await response.text();
+  try {
+    const data = text ? JSON.parse(text) : {};
+    if (!response.ok) throw new Error(data.error || data.message || `Error ${response.status}`);
+    return data;
+  } catch (err) {
+    throw new Error(text || err.message);
+  }
+};
 
 // ---------------------------------------------
 // Login / Auth API
 // ---------------------------------------------
-
 export async function login(payload) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  const text = await res.text();
-  try {
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
-    return data;
-  } catch (err) {
-    throw new Error(text || err.message);
-  }
+  return handleResponse(res);
 }
 
 export async function verify2FA(payload) {
@@ -26,14 +31,7 @@ export async function verify2FA(payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  const text = await res.text();
-  try {
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
-    return data;
-  } catch (err) {
-    throw new Error(text || err.message);
-  }
+  return handleResponse(res);
 }
 
 export async function forgotUsername(email) {
@@ -42,14 +40,7 @@ export async function forgotUsername(email) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
-  const text = await res.text();
-  try {
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
-    return data;
-  } catch (err) {
-    throw new Error(text || err.message);
-  }
+  return handleResponse(res);
 }
 
 export async function forgotPassword(email) {
@@ -58,14 +49,7 @@ export async function forgotPassword(email) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
-  const text = await res.text();
-  try {
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
-    return data;
-  } catch (err) {
-    throw new Error(text || err.message);
-  }
+  return handleResponse(res);
 }
 
 export async function verifyToken(token) {
@@ -74,14 +58,7 @@ export async function verifyToken(token) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token }),
   });
-  const text = await res.text();
-  try {
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
-    return data;
-  } catch (err) {
-    throw new Error(text || err.message);
-  }
+  return handleResponse(res);
 }
 
 export async function resetPassword(token, newPassword) {
@@ -90,14 +67,7 @@ export async function resetPassword(token, newPassword) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, newPassword }),
   });
-  const text = await res.text();
-  try {
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
-    return data;
-  } catch (err) {
-    throw new Error(text || err.message);
-  }
+  return handleResponse(res);
 }
 
 // ---------------------------------------------
