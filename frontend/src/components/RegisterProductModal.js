@@ -11,31 +11,143 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     precio: '',
     id_categoria: '',
   });
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
   const [categorias, setCategorias] = useState([]);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categoriesRefreshTrigger, setCategoriesRefreshTrigger] = useState(0);
+  
+  // Estados para manejo de errores con modal
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorData, setErrorData] = useState({ title: '', message: '' });
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successData, setSuccessData] = useState({ title: '', message: '' });
 
-  // Cargar categorías del backend - CORREGIDO
+  // Cargar categorías del backend
   const loadCategorias = async () => {
     try {
-      const data = await api.getCategorias(); // api.getCategorias() ya devuelve datos directamente
+      const data = await api.getCategorias();
       if (Array.isArray(data)) {
         setCategorias(data);
       } else {
-        console.error('Error: getCategorias no devolvió un array:', data);
+        showError('Error de Categorías', 'No se pudieron cargar las categorías');
       }
     } catch (err) {
       console.error('Error cargando categorías:', err);
+      showError('Error de Conexión', 'No se pudo conectar al servidor');
     }
   };
 
   useEffect(() => {
     loadCategorias();
   }, [categoriesRefreshTrigger]);
+
+  // Funciones para mostrar modales
+  const showError = (title, message) => {
+    setErrorData({ title, message });
+    setShowErrorModal(true);
+  };
+
+  const showSuccess = (title, message) => {
+    setSuccessData({ title, message });
+    setShowSuccessModal(true);
+  };
+
+  const closeErrorModal = () => {
+    setShowErrorModal(false);
+    setErrorData({ title: '', message: '' });
+  };
+
+  const closeSuccessModal = () => {
+    setShowSuccessModal(false);
+    setSuccessData({ title: '', message: '' });
+    onClose();
+  };
+
+  // Función mejorada para extraer el mensaje de error
+  const extractErrorMessage = (error) => {
+    console.log('Error crudo recibido:', error);
+    console.log('Tipo de error:', typeof error);
+    
+    // Si es undefined o null
+    if (!error) {
+      return 'Error desconocido';
+    }
+    
+    // Si ya es un string limpio
+    if (typeof error === 'string' && !error.startsWith('{') && !error.startsWith('[')) {
+      return error;
+    }
+    
+    // Si es un string que parece JSON
+    if (typeof error === 'string') {
+      try {
+        const parsed = JSON.parse(error);
+        console.log('JSON parseado:', parsed);
+        
+        // Buscar la propiedad 'error' en el objeto parseado
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.error && typeof parsed.error === 'string') {
+            return parsed.error;
+          }
+          if (parsed.message && typeof parsed.message === 'string') {
+            return parsed.message;
+          }
+          // Si no tiene propiedades conocidas, intentar stringificar solo el contenido relevante
+          return JSON.stringify(parsed);
+        }
+        return error;
+      } catch (parseError) {
+        console.log('No es JSON válido, devolviendo string original');
+        return error;
+      }
+    }
+    
+    // Si es un objeto
+    if (typeof error === 'object') {
+      console.log('Es un objeto, propiedades:', Object.keys(error));
+      
+      // Caso 1: error.error (formato de tu API)
+      if (error.error !== undefined) {
+        if (typeof error.error === 'string') {
+          return error.error;
+        }
+        // Si error.error es otro objeto o array
+        if (typeof error.error === 'object') {
+          return JSON.stringify(error.error);
+        }
+      }
+      
+      // Caso 2: error.message (Error estándar)
+      if (error.message && typeof error.message === 'string') {
+        return error.message;
+      }
+      
+      // Caso 3: Tiene propiedad response (errores de fetch/axios)
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (data.error && typeof data.error === 'string') {
+          return data.error;
+        }
+        if (data.message && typeof data.message === 'string') {
+          return data.message;
+        }
+        return JSON.stringify(data);
+      }
+      
+      // Caso 4: Convertir a string solo si es pequeño
+      const stringified = JSON.stringify(error);
+      if (stringified.length < 100) {
+        return stringified;
+      }
+      
+      return 'Error del servidor';
+    }
+    
+    // Cualquier otro caso
+    return String(error);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,29 +180,38 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
     }
   };
 
+  const validateForm = () => {
+    // Validar nombre
+    if (!form.nombre.trim()) {
+      showError('Nombre Requerido', 'El nombre del producto es obligatorio');
+      return false;
+    }
+
+    // Validar cantidad
+    if (form.cantidad === '' || isNaN(Number(form.cantidad)) || Number(form.cantidad) < 0) {
+      showError('Cantidad Inválida', 'La cantidad debe ser un número válido mayor o igual a 0');
+      return false;
+    }
+
+    // Validar precio
+    if (form.precio === '' || isNaN(Number(form.precio)) || Number(form.precio) < 0) {
+      showError('Precio Inválido', 'El precio debe ser un número válido mayor o igual a 0');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
-    setError(null);
     
     try {
-      // Validaciones básicas antes de construir payload
-      const cantidadValida = form.cantidad !== '' && !isNaN(Number(form.cantidad));
-      const precioValido = form.precio !== '' && !isNaN(Number(form.precio));
-      
-      if (!cantidadValida || !precioValido) {
-        setError({ error: 'Cantidad y precio son obligatorios' });
-        setLoading(false);
-        return;
-      }
-      
-      // Validar que el nombre no esté vacío
-      if (!form.nombre.trim()) {
-        setError({ error: 'El nombre del producto es obligatorio' });
-        setLoading(false);
-        return;
-      }
-      
       const payload = {
         ...form,
         cantidad: Number.parseInt(form.cantidad, 10),
@@ -100,20 +221,65 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
       
       console.log('Enviando producto:', payload, 'Archivo:', file);
       
-      // CORRECCIÓN: api.postProducto devuelve datos directamente
       const result = await api.postProducto(payload, file);
       
+      console.log('Resultado del servidor:', result);
+      console.log('Tipo de resultado:', typeof result);
+      
       if (result && !result.error) {
-        // SOLO llamar al callback de éxito y cerrar el modal
-        console.log('Producto creado exitosamente:', result);
+        showSuccess('✅ Producto Registrado', 'El producto ha sido creado exitosamente');
         onSuccess(result);
-        onClose();
       } else {
-        setError({ error: result?.error || 'Error al crear producto' });
+        // Usar la función mejorada para extraer el mensaje
+        const errorMessage = extractErrorMessage(result);
+        console.log('Mensaje de error extraído:', errorMessage);
+        
+        let errorTitle = 'Error';
+        
+        // Personalizar título según el contenido del mensaje
+        const msgLower = errorMessage.toLowerCase();
+        if (msgLower.includes('nombre') || 
+            msgLower.includes('existe') ||
+            msgLower.includes('duplicado') ||
+            msgLower.includes('ya existe')) {
+          errorTitle = 'Producto Duplicado';
+        } else if (msgLower.includes('categoría') || 
+                  msgLower.includes('categoria')) {
+          errorTitle = 'Categoría Inválida';
+        } else if (msgLower.includes('imagen') || 
+                  msgLower.includes('archivo')) {
+          errorTitle = 'Error de Imagen';
+        } else if (msgLower.includes('conexión') || 
+                  msgLower.includes('conexion') ||
+                  msgLower.includes('network')) {
+          errorTitle = 'Error de Conexión';
+        } else if (msgLower.includes('sistema')) {
+          errorTitle = 'Error del Sistema';
+        }
+        
+        showError(errorTitle, errorMessage);
       }
     } catch (err) {
-      console.error('Error en handleSubmit:', err);
-      setError({ error: err.message || 'Error al crear producto' });
+      console.error('Error en handleSubmit catch:', err);
+      console.error('Error completo:', err);
+      
+      // Extraer el mensaje del error de catch
+      const errorMessage = extractErrorMessage(err);
+      console.log('Mensaje de error de catch extraído:', errorMessage);
+      
+      let errorTitle = 'Error';
+      const msgLower = errorMessage.toLowerCase();
+      
+      if (msgLower.includes('network') || 
+          msgLower.includes('conexión') ||
+          msgLower.includes('conexion') ||
+          msgLower.includes('failed to fetch')) {
+        errorTitle = 'Error de Conexión';
+      } else if (msgLower.includes('timeout')) {
+        errorTitle = 'Tiempo de Espera';
+      }
+      
+      showError(errorTitle, errorMessage);
     } finally {
       setLoading(false);
     }
@@ -162,12 +328,6 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
         <div style={styles.modal}>
           <h2 style={styles.title}>🧾 Registrar producto</h2>
 
-          {error && (
-            <div style={styles.errorBox}>
-              {typeof error === 'object' ? JSON.stringify(error) : error}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} style={styles.form}>
             <label style={styles.label}>
               Nombre:
@@ -176,7 +336,7 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
                 name="nombre"
                 value={form.nombre}
                 onChange={handleChange}
-                placeholder="Ej. jarron"
+                placeholder="Ej. Jarron"
                 required
                 disabled={loading}
               />
@@ -304,10 +464,59 @@ export default function RegisterProductModal({ onClose, onSuccess }) {
           )}
         </div>
       </div>
+
+      {/* Modal de Error */}
+      {showErrorModal && (
+        <div style={modalStyles.overlay}>
+          <div style={modalStyles.modal}>
+            <div style={modalStyles.errorHeader}>
+              ❌ {errorData.title}
+            </div>
+            
+            <div style={modalStyles.content}>
+              <p style={modalStyles.message}>{errorData.message}</p>
+            </div>
+
+            <div style={modalStyles.buttonGroup}>
+              <button 
+                style={modalStyles.buttonPrimary}
+                onClick={closeErrorModal}
+              >
+                ✅ Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Éxito */}
+      {showSuccessModal && (
+        <div style={modalStyles.overlay}>
+          <div style={modalStyles.modal}>
+            <div style={modalStyles.successHeader}>
+              {successData.title}
+            </div>
+            
+            <div style={modalStyles.content}>
+              <p style={modalStyles.message}>{successData.message}</p>
+            </div>
+
+            <div style={modalStyles.buttonGroup}>
+              <button 
+                style={modalStyles.buttonSuccess}
+                onClick={closeSuccessModal}
+              >
+                ✅ Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
+// Estilos (mantener igual que antes)
 const styles = {
   overlay: {
     position: 'fixed',
@@ -404,14 +613,86 @@ const styles = {
     transition: 'background 0.3s ease',
     fontSize: '0.9rem',
   },
-  errorBox: {
-    backgroundColor: '#fce8e6',
-    color: '#7a3e2f',
-    borderLeft: '5px solid #b26a55',
-    padding: '0.7rem',
-    borderRadius: '6px',
-    marginBottom: '1rem',
+};
+
+const modalStyles = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(75, 54, 33, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1002,
+  },
+  modal: {
+    backgroundColor: '#f5f1e3',
+    color: '#4b3621',
+    borderRadius: '14px',
+    width: '400px',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+    fontFamily: '"Poppins", sans-serif',
+    animation: 'fadeIn 0.3s ease-in-out',
+    backgroundImage: `url(${Marco})`,
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    overflow: 'hidden',
+  },
+  errorHeader: {
+    padding: '1rem',
+    backgroundColor: '#f44336',
+    color: 'white',
+    textAlign: 'center',
+    fontSize: '1.2rem',
+    fontWeight: 'bold',
+  },
+  successHeader: {
+    padding: '1rem',
+    backgroundColor: '#4caf50',
+    color: 'white',
+    textAlign: 'center',
+    fontSize: '1.2rem',
+    fontWeight: 'bold',
+  },
+  content: {
+    padding: '1.5rem',
+  },
+  message: {
+    fontSize: '1rem',
+    lineHeight: '1.5',
+    textAlign: 'center',
+    margin: 0,
+  },
+  buttonGroup: {
+    padding: '1rem',
+    display: 'flex',
+    justifyContent: 'center',
+    borderTop: '1px solid #d2b48c',
+  },
+  buttonPrimary: {
+    backgroundColor: '#a67c52',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
     fontSize: '0.9rem',
-    wordBreak: 'break-word',
+    transition: 'all 0.3s ease',
+    fontWeight: 'bold',
+  },
+  buttonSuccess: {
+    backgroundColor: '#4caf50',
+    color: 'white',
+    border: 'none',
+    padding: '0.8rem 1.4rem',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    transition: 'all 0.3s ease',
+    fontWeight: 'bold',
   },
 };

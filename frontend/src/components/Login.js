@@ -79,7 +79,7 @@ export default function AuthModal({ onLoginSuccess }) {
         if (userRol === 'admin') {
           navigate('/');
         } else {
-          navigate('/ventas');
+          navigate('/');
         }
       } else {
         setLoginError('Respuesta inesperada del servidor');
@@ -148,7 +148,7 @@ export default function AuthModal({ onLoginSuccess }) {
             if (userRol === 'admin') {
               navigate('/');
             } else {
-              navigate('/ventas');
+              navigate('/');
             }
           }
         }}
