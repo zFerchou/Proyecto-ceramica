@@ -402,9 +402,13 @@ export default function InventoryPage({ onClose }) {
   }, []);
 
   useEffect(() => {
-    const filtered = productos.filter((p) =>
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const term = (searchTerm || "").toString().trim().toLowerCase();
+    const filtered = productos.filter((p) => {
+      const nameMatch = (p.nombre || "").toLowerCase().includes(term);
+      const barcodeStr = p.codigo_barras != null ? String(p.codigo_barras) : "";
+      const barcodeMatch = barcodeStr.toLowerCase().includes(term);
+      return nameMatch || barcodeMatch;
+    });
     setFilteredProductos(filtered);
   }, [searchTerm, productos]);
 
@@ -645,7 +649,7 @@ export default function InventoryPage({ onClose }) {
         <div style={styles.searchContainer}>
           <input
             type="text"
-            placeholder="🔍 Buscar producto por nombre..."
+            placeholder="🔍 Buscar por nombre o código de barras..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={styles.searchInput}

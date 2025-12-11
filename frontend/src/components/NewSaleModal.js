@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/api'; // Importar api, no funciones individuales
 import Marco from "../images/Marco.png";
 
@@ -11,6 +11,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
   const [ventaRegistrada, setVentaRegistrada] = useState(null);
   const [productosVendidos, setProductosVendidos] = useState([]);
   const [productos, setProductos] = useState([]);
+  const inputRefs = useRef([]);
 
   // Cargar productos al abrir el modal - CORREGIDO
   useEffect(() => {
@@ -28,6 +29,15 @@ export default function NewSaleModal({ onClose, onCreated }) {
     };
     
     cargarProductos();
+  }, []);
+
+  // Enfocar automáticamente el primer campo de código de barras al abrir el modal
+  useEffect(() => {
+    const el = inputRefs.current[0];
+    if (el) {
+      el.focus();
+      el.select?.();
+    }
   }, []);
 
   const toNumber = (value) => {
@@ -92,14 +102,16 @@ export default function NewSaleModal({ onClose, onCreated }) {
     const next = [...lines];
     
     if (field === 'codigo_barras') {
-      const producto = buscarProducto(value);
+      const raw = (value || '').toString();
+      const onlyDigits = raw.replace(/\D+/g, '');
+      const producto = buscarProducto(onlyDigits);
       if (producto) {
         const stock = getStockProducto(producto);
         console.log(`Stock para producto ${producto.nombre}:`, stock);
         
         next[idx] = { 
           ...next[idx], 
-          codigo_barras: value,
+          codigo_barras: onlyDigits,
           stock: stock,
           nombre: producto.nombre || producto.nombre_producto || 'Producto encontrado',
           precio: toNumber(producto.precio || producto.precio_venta || producto.precio_unitario || 0)
@@ -107,11 +119,21 @@ export default function NewSaleModal({ onClose, onCreated }) {
       } else {
         next[idx] = { 
           ...next[idx], 
-          codigo_barras: value,
+          codigo_barras: onlyDigits,
           stock: 0,
           nombre: value ? 'Producto no encontrado' : '',
           precio: 0
         };
+      }
+
+      // Auto-agregar nueva línea si alcanza 13 dígitos (EAN-13)
+      const esEAN13 = /^\d{13}$/.test(onlyDigits);
+      if (esEAN13 && idx === lines.length - 1) {
+        addLine();
+        setTimeout(() => {
+          const el = inputRefs.current[idx + 1];
+          if (el) el.focus();
+        }, 0);
       }
     } else if (field === 'cantidad') {
       const cantidad = parseInt(value) || 0;
@@ -254,6 +276,22 @@ export default function NewSaleModal({ onClose, onCreated }) {
                     onChange={e => updateLine(idx, 'codigo_barras', e.target.value)}
                     style={styles.input}
                     disabled={loading}
+                    ref={el => (inputRefs.current[idx] = el)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (line.codigo_barras.trim() !== '') {
+                          addLine();
+                          setTimeout(() => {
+                            const next = inputRefs.current[idx + 1];
+                            if (next) {
+                              next.focus();
+                              next.select?.();
+                            }
+                          }, 50);
+                        }
+                      }
+                    }}
                   />
                   {line.nombre && line.nombre !== 'Producto no encontrado' && (
                     <div style={styles.productInfo}>
