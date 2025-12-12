@@ -4,6 +4,7 @@ import PageBackground from "./PageBackground";
 import InventoryPage from "../components/InventoryPage";
 import SalesPage from "../components/SalesPage";
 import ProductosView from "../components/ProductosView";
+import UserManagementPage from "../components/UserManagementPage"; // AÑADIDO
 import Login from "../components/Login";
 import authService from "../services/authService";
 import api from "../api/api";
@@ -309,15 +310,26 @@ export default function Dashboard() {
               </li>
 
               {user && user.rol === 'admin' && (
-                <li>
-                  <button 
-                    type="button" 
-                    onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}
-                    disabled={loading}
-                  >
-                    Inventario
-                  </button>
-                </li>
+                <>
+                  <li>
+                    <button 
+                      type="button" 
+                      onClick={() => { setActivePage("inventory"); setMenuOpen(false); }}
+                      disabled={loading}
+                    >
+                       Inventario
+                    </button>
+                  </li>
+                  <li>
+                    <button 
+                      type="button" 
+                      onClick={() => { setActivePage("userManagement"); setMenuOpen(false); }}
+                      disabled={loading}
+                    >
+                       Usuarios
+                    </button>
+                  </li>
+                </>
               )}
               
               <li>
@@ -326,7 +338,7 @@ export default function Dashboard() {
                   onClick={() => { setActivePage("sales"); setMenuOpen(false); }}
                   disabled={loading}
                 >
-                  Ventas
+                   Ventas
                 </button>
               </li>
 
@@ -340,7 +352,7 @@ export default function Dashboard() {
                   }}
                   disabled={loading}
                 >
-                  Productos
+                   Productos
                 </button>
               </li>
 
@@ -354,7 +366,7 @@ export default function Dashboard() {
                     className="logout-btn"
                     disabled={loading}
                   >
-                    Cerrar sesión
+                     Cerrar sesión
                   </button>
                 </li>
               ) : (
@@ -364,7 +376,7 @@ export default function Dashboard() {
                     onClick={() => { setMenuOpen(false); setShowLogin(true); }}
                     disabled={loading}
                   >
-                    Iniciar Sesión
+                     Iniciar Sesión
                   </button>
                 </li>
               )}
@@ -383,6 +395,7 @@ export default function Dashboard() {
           <>
             {activePage === "home" && <Home />}
             {activePage === "inventory" && user && user.rol === 'admin' && <InventoryPage onClose={() => setActivePage("home")} />}
+            {activePage === "userManagement" && user && user.rol === 'admin' && <UserManagementPage onClose={() => setActivePage("home")} />}
             {activePage === "sales" && <SalesPage />}
             {activePage === "productos" && <ProductosView filter={productosFilter} />}
 
@@ -562,7 +575,7 @@ export default function Dashboard() {
           padding: 15px 0; 
           z-index: 2000; 
           animation: slideIn 0.3s ease-out; 
-          min-width: 200px;
+          min-width: 220px;
           max-width: 300px;
         }
         .dropdown-menu ul { 
@@ -581,6 +594,9 @@ export default function Dashboard() {
           font-size: 1rem;
           font-weight: 500;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
         }
         .dropdown-menu button:hover:not(:disabled) { 
           background: #f8f9fa; 
@@ -647,6 +663,9 @@ export default function Dashboard() {
           transition: background-color 0.3s;
           font-weight: 500;
           margin-top: 5px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
         }
         
         .logout-btn:hover:not(:disabled) {
@@ -807,13 +826,13 @@ export default function Dashboard() {
           font-size: 1.4rem;
           font-weight: 600;
           color: #31241F;
-          margin-bottom: 8px;
+          marginBottom: 8px;
         }
 
         .categoria-subtitle {
           color: #735f53;
           font-size: 0.95rem;
-          margin-bottom: 15px;
+          marginBottom: 15px;
           line-height: 1.4;
         }
 
@@ -828,11 +847,11 @@ export default function Dashboard() {
         }
 
         .products-section {
-          margin-bottom: 60px;
+          marginBottom: 60px;
         }
 
         .contact-section {
-          margin-bottom: 60px;
+          marginBottom: 60px;
         }
         .contact-grid {
           display: grid;
@@ -854,7 +873,7 @@ export default function Dashboard() {
         .contact-item h3 {
           font-size: 1.1rem;
           color: #31241F;
-          margin-bottom: 10px;
+          marginBottom: 10px;
           font-weight: 600;
         }
         .contact-item p {
@@ -875,11 +894,11 @@ export default function Dashboard() {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
           gap: 30px;
-          margin-bottom: 30px;
+          marginBottom: 30px;
         }
         .footer-section h3 {
           font-size: 1.2rem;
-          margin-bottom: 15px;
+          marginBottom: 15px;
           color: #ecf0f1;
           font-weight: 600;
         }
