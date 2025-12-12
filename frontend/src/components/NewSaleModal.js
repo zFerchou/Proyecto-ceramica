@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/api'; // Importar api, no funciones individuales
+import { printTicket } from '../services/PrintService';
+import logo from '../images/logo.png';
 import Marco from "../images/Marco.png";
 
 export default function NewSaleModal({ onClose, onCreated }) {
@@ -238,6 +240,47 @@ export default function NewSaleModal({ onClose, onCreated }) {
     }
   }
 
+  async function handlePrintTicket() {
+    try {
+      const lineasValidas = lines.filter(line => line.codigo_barras);
+      const total = calcularTotalVenta(lineasValidas);
+
+      const items = lineasValidas.map((p) => ({
+        nombre: (p.nombre || '').toString(),
+        cantidad: toNumber(p.cantidad),
+        precio: toNumber(p.precio),
+        total: toNumber(p.precio) * toNumber(p.cantidad),
+      }));
+
+      const codigoVenta = ventaRegistrada?.codigo_venta || ventaRegistrada?.id || '';
+
+      async function loadImageBase64(url) {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      const logoBase64 = await loadImageBase64(logo).catch(() => null);
+
+      await printTicket({
+        titulo: 'Comprobante de Venta',
+        items,
+        total,
+        mensaje: 'Gracias por su compra',
+        tienda: 'Santo Barro',
+        logoUrl: logoBase64 || null,
+        codigoVenta: String(codigoVenta || ''),
+      });
+    } catch (err) {
+      console.error('Error al imprimir ticket:', err);
+      setError('No se pudo imprimir el ticket: ' + (err?.message || 'Error desconocido'));
+    }
+  }
+
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
@@ -445,6 +488,12 @@ export default function NewSaleModal({ onClose, onCreated }) {
                     style={styles.confirmationButton}
                   >
                     ✅ Cerrar
+                  </button>
+                  <button
+                    onClick={handlePrintTicket}
+                    style={{ ...styles.confirmationButton, marginLeft: '0.6rem' }}
+                  >
+                    🖨️ Imprimir ticket
                   </button>
                 </div>
               </div>

@@ -1,0 +1,210 @@
+// src/services/PrintService.js
+
+let driver = null;
+
+export function setPrintDriver(printDriver) {
+  driver = printDriver;
+}
+
+export async function printTicket({
+  titulo,
+  items,
+  total,
+  mensaje,
+  tienda,
+  logoUrl,
+  codigoVenta
+}) {
+  try {
+    const ticketHTML = `
+      <html>
+        <head>
+          <style>
+            @page {
+              margin: 0 !important;
+            }
+
+            body {
+              font-family: monospace;
+              font-size: 12px;
+              width: 42mm !important;
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              overflow: hidden;
+              text-align: center;
+
+              /* 👇 ESTA ES LA SOLUCIÓN REAL QUE LAS IMPRESORAS POS SÍ RESPETAN */
+              padding-left: 20px !important;
+            }
+
+            .logo {
+              width: 40px;
+              margin: 0 auto 6px auto;
+              display: block;
+            }
+
+            .title {
+              font-size: 14px;
+              font-weight: bold;
+              word-break: break-word;
+              text-align: center;
+            }
+
+            .product {
+              width: 100%;
+              display: block;
+              margin: 2px 0;
+            }
+
+            .item {
+              display: flex;
+              justify-content: space-between;
+              width: 100%;
+              font-size: 12px;
+              margin-top: 1px;
+              white-space: nowrap;
+            }
+
+            .total {
+              margin-top: 8px;
+              font-size: 14px;
+              font-weight: bold;
+              text-align: right;
+              width: 100%;
+            }
+
+            .footer {
+              margin-top: 10px;
+              word-break: break-word;
+              font-size: 11px;
+              width: 100%;
+              text-align: center;
+            }
+
+            .barcode-container {
+              text-align: center;
+              width: 100%;
+              margin-top: 6px;
+              margin-bottom: 4px;
+            }
+
+            .barcode {
+              width: 38mm !important;
+              height: 48px !important;
+              margin: 0 auto;
+              display: block;
+            }
+
+            hr {
+              border: none;
+              border-top: 1px dashed #000;
+              margin: 6px 0;
+              width: 100%;
+            }
+          </style>
+        </head>
+
+        <body>
+
+          ${logoUrl ? `<img class="logo" src="${logoUrl}"/>` : ""}
+
+          <div class="title">${tienda}</div>
+          <div class="title">${titulo}</div>
+
+          <hr/>
+
+          ${items
+            .map(
+              (item) => `
+                <div class="product">
+                  <div>${item.nombre}</div>
+                  <div class="item">
+                    <span>x${item.cantidad}</span>
+                    <span>$${item.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              `
+            )
+            .join("")}
+
+          <hr/>
+
+          <div class="total">TOTAL: $${total.toFixed(2)}</div>
+
+          <hr/>
+
+          <div>Venta: ${codigoVenta || ""}</div>
+
+          ${
+            codigoVenta && /^\d{13}$/.test(String(codigoVenta))
+              ? `<div class="barcode-container"><svg class="barcode"></svg></div>`
+              : ""
+          }
+
+          <div class="footer">${mensaje}</div>
+
+        </body>
+      </html>
+    `;
+
+    if (driver && typeof driver.print === "function") {
+      return driver.print({ html: ticketHTML });
+    }
+
+    // Fallback web
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.visibility = "hidden";
+
+    document.body.appendChild(iframe);
+
+    const iframeWin = iframe.contentWindow;
+    const iframeDoc = iframeWin.document;
+
+    iframeDoc.open();
+    iframeDoc.write(ticketHTML);
+    iframeDoc.close();
+
+    function loadBarcodeLib(win) {
+      return new Promise((resolve, reject) => {
+        const script = win.document.createElement("script");
+        script.src =
+          "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        win.document.head.appendChild(script);
+      });
+    }
+
+    await loadBarcodeLib(iframeWin).catch(() => {});
+
+    const code = String(codigoVenta || "");
+    if (/^\d{13}$/.test(code)) {
+      const svg = iframeDoc.querySelector(".barcode");
+      if (svg && iframeWin.JsBarcode) {
+        iframeWin.JsBarcode(svg, code, {
+          format: "EAN13",
+          width: 1.2,
+          height: 48,
+          displayValue: false,
+          margin: 0
+        });
+      }
+    }
+
+    iframeWin.focus();
+    iframeWin.print();
+
+    setTimeout(() => document.body.removeChild(iframe), 800);
+
+  } catch (error) {
+    console.error("Error en printTicket:", error);
+    throw error;
+  }
+}
+
+export default { setPrintDriver, printTicket };
