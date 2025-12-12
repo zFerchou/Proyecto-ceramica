@@ -80,21 +80,54 @@ export const crearVenta = async (req, res) => {
       [id_usuario]
     );
 
-    // 6. Procesar productos
+    // 6. Procesar productos (incluye Express)
     const productosConPrecio = [];
     let totalVenta = 0;
 
     for (const p of productos) {
-      const { codigo_barras, cantidad } = p;
-      
-      if (!codigo_barras || typeof codigo_barras !== 'string' || !Number.isInteger(cantidad) || cantidad <= 0) {
+      const { codigo_barras, cantidad, precio_express, nombre_express } = p;
+
+      if (!codigo_barras || !Number.isInteger(cantidad) || cantidad <= 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ 
-          error: 'Cada producto debe tener "codigo_barras" válido y "cantidad" como entero positivo mayor a 0' 
+        return res.status(400).json({
+          error:
+            'Cada producto debe tener "codigo_barras" válido y "cantidad" como entero positivo'
         });
       }
 
-      // Obtener información del producto
+      // CASO 1: PRODUCTO EXPRESS (código inicia con "9")
+      if (codigo_barras.startsWith("9")) {
+        if (!precio_express) {
+          await client.query('ROLLBACK');
+          return res
+            .status(400)
+            .json({ error: `El producto express "${codigo_barras}" requiere precio_express` });
+        }
+
+        const nombreFinal = nombre_express?.trim() || "Venta Express";
+
+        const subtotal = precio_express * cantidad;
+        totalVenta += subtotal;
+
+        // Insertar en producto_express
+        await client.query(
+          `INSERT INTO producto_express 
+             (id_ticket, codigo, nombre, cantidad, precio)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id_ticket, codigo_barras, nombreFinal, cantidad, precio_express]
+        );
+
+        productosConPrecio.push({
+          nombre_producto: nombreFinal,
+          cantidad,
+          precio: precio_express,
+          subtotal
+        });
+
+        continue; // siguiente producto
+      }
+
+      // CASO 2: PRODUCTO NORMAL (inventario)
       const productoCheck = await client.query(
         `SELECT pr.id_producto, pr.cantidad AS stock_actual, pr.precio, pr.nombre
          FROM codigo_barras cb
@@ -102,41 +135,42 @@ export const crearVenta = async (req, res) => {
          WHERE cb.codigo = $1`,
         [codigo_barras]
       );
-      
+
       if (productoCheck.rowCount === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: `Producto con código de barras "${codigo_barras}" no encontrado` });
+        return res.status(404).json({
+          error: `Producto con código de barras "${codigo_barras}" no encontrado`
+        });
       }
 
       const { id_producto, stock_actual, precio, nombre } = productoCheck.rows[0];
-      
-      // Verificar stock
+
       if (stock_actual < cantidad) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: `Stock insuficiente para el producto "${nombre}"` });
+        return res.status(400).json({
+          error: `Stock insuficiente para el producto "${nombre}"`
+        });
       }
 
-      // Registrar producto en el ticket
       await client.query(
-        `INSERT INTO ticket_producto (id_ticket, id_producto, cantidad) VALUES ($1, $2, $3)`,
+        `INSERT INTO ticket_producto (id_ticket, id_producto, cantidad)
+         VALUES ($1, $2, $3)`,
         [id_ticket, id_producto, cantidad]
       );
 
-      // Actualizar stock
       await client.query(
         `UPDATE producto SET cantidad = cantidad - $1 WHERE id_producto = $2`,
         [cantidad, id_producto]
       );
 
-      // Calcular total y preparar respuesta
       const subtotal = precio * cantidad;
       totalVenta += subtotal;
-      
+
       productosConPrecio.push({
         nombre_producto: nombre,
-        cantidad: cantidad,
-        precio: precio,
-        subtotal: subtotal
+        cantidad,
+        precio,
+        subtotal
       });
     }
 
@@ -228,17 +262,28 @@ export const obtenerVentas = async (req, res) => {
     const ventasConProductos = await Promise.all(
       result.rows.map(async (venta) => {
         const productos = await pool.query(
-          `SELECT p.nombre, tp.cantidad, p.precio, (tp.cantidad * p.precio) as subtotal
+          `SELECT p.nombre AS nombre_producto, tp.cantidad, p.precio, (tp.cantidad * p.precio) as subtotal
            FROM ticket t
            JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
            JOIN producto p ON tp.id_producto = p.id_producto
            WHERE t.id_venta = $1`,
           [venta.id_venta]
         );
+
+        const express = await pool.query(
+          `SELECT nombre AS nombre_producto, cantidad, precio, subtotal
+           FROM producto_express
+           WHERE id_ticket = (SELECT id_ticket FROM ticket WHERE id_venta = $1)`,
+          [venta.id_venta]
+        );
+
+        const productosCombinados = [...productos.rows, ...express.rows];
+        const total = productosCombinados.reduce((sum, p) => sum + p.subtotal, 0);
+
         return { 
           ...venta, 
-          productos: productos.rows,
-          total_venta: venta.total_venta || 0
+          productos: productosCombinados,
+          total_venta: total
         };
       })
     );
@@ -302,7 +347,7 @@ export const obtenerVenta = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para ver esta venta' });
     }
 
-    // Obtener productos de la venta
+    // Obtener productos de la venta (normales + express)
     const productosResult = await pool.query(
       `SELECT p.nombre AS nombre_producto, tp.cantidad, p.precio,
               (tp.cantidad * p.precio) as subtotal
@@ -312,11 +357,21 @@ export const obtenerVenta = async (req, res) => {
       [venta.id_ticket]
     );
 
-    venta.productos = productosResult.rows;
+    const expressResult = await pool.query(
+      `SELECT nombre AS nombre_producto, cantidad, precio, subtotal
+       FROM producto_express
+       WHERE id_ticket = $1`,
+      [venta.id_ticket]
+    );
+
+    venta.productos = [
+      ...productosResult.rows,
+      ...expressResult.rows
+    ];
     
     // Calcular total
-    venta.total_venta = productosResult.rows.reduce(
-      (sum, producto) => sum + (producto.cantidad * producto.precio), 0
+    venta.total_venta = venta.productos.reduce(
+      (sum, p) => sum + p.subtotal, 0
     );
 
     return res.json(venta);
@@ -374,9 +429,19 @@ export const obtenerVentaPorCodigo = async (req, res) => {
       [venta.id_ticket]
     );
 
-    venta.productos = productosResult.rows;
-    venta.total_venta = productosResult.rows.reduce(
-      (sum, producto) => sum + (producto.cantidad * producto.precio), 0
+    const expressResult = await pool.query(
+      `SELECT nombre AS nombre_producto, cantidad, precio, subtotal
+       FROM producto_express
+       WHERE id_ticket = $1`,
+      [venta.id_ticket]
+    );
+
+    venta.productos = [
+      ...productosResult.rows,
+      ...expressResult.rows
+    ];
+    venta.total_venta = venta.productos.reduce(
+      (sum, p) => sum + p.subtotal, 0
     );
 
     return res.json(venta);

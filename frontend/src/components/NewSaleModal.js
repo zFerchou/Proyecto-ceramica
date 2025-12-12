@@ -107,6 +107,8 @@ export default function NewSaleModal({ onClose, onCreated }) {
       const raw = (value || '').toString();
       const onlyDigits = raw.replace(/\D+/g, '').slice(0, 13);
       const producto = buscarProducto(onlyDigits);
+      const startsWith9 = onlyDigits.startsWith('9') && onlyDigits.length > 1;
+
       if (producto) {
         const stock = getStockProducto(producto);
         console.log(`Stock para producto ${producto.nombre}:`, stock);
@@ -116,7 +118,19 @@ export default function NewSaleModal({ onClose, onCreated }) {
           codigo_barras: onlyDigits,
           stock: stock,
           nombre: producto.nombre || producto.nombre_producto || 'Producto encontrado',
-          precio: toNumber(producto.precio || producto.precio_venta || producto.precio_unitario || 0)
+          precio: toNumber(producto.precio || producto.precio_venta || producto.precio_unitario || 0),
+          esExpress: false
+        };
+      } else if (startsWith9) {
+        const cents = parseInt(onlyDigits.slice(1), 10);
+        const precioExpress = isNaN(cents) ? 0 : cents / 100;
+        next[idx] = {
+          ...next[idx],
+          codigo_barras: onlyDigits,
+          stock: null, // sin control de stock para express
+          nombre: next[idx].nombre && next[idx].nombre !== 'Producto no encontrado' ? next[idx].nombre : 'VENTA EXPRESS',
+          precio: precioExpress,
+          esExpress: true
         };
       } else {
         next[idx] = { 
@@ -124,7 +138,8 @@ export default function NewSaleModal({ onClose, onCreated }) {
           codigo_barras: onlyDigits,
           stock: 0,
           nombre: value ? 'Producto no encontrado' : '',
-          precio: 0
+          precio: 0,
+          esExpress: false
         };
       }
 
@@ -141,7 +156,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
       const cantidad = parseInt(value) || 0;
       next[idx] = { ...next[idx], [field]: cantidad };
       
-      if (cantidad > next[idx].stock && next[idx].stock > 0) {
+      if (!next[idx].esExpress && cantidad > next[idx].stock && next[idx].stock > 0) {
         setError(`⚠️ Stock insuficiente para "${next[idx].nombre}". Stock disponible: ${next[idx].stock}`);
       } else {
         setError(null);
@@ -163,7 +178,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
 
   const validarStock = () => {
     for (const line of lines) {
-      if (line.codigo_barras && line.cantidad > line.stock) {
+      if (!line.esExpress && line.codigo_barras && line.cantidad > line.stock) {
         return `Stock insuficiente para "${line.nombre}". Stock disponible: ${line.stock}, Cantidad solicitada: ${line.cantidad}`;
       }
     }
@@ -182,10 +197,24 @@ export default function NewSaleModal({ onClose, onCreated }) {
       return;
     }
     
-    const productosParaEnviar = lineasValidas.map(l => ({
-      codigo_barras: String(l.codigo_barras || '').trim(),
-      cantidad: Number(l.cantidad),
-    }));
+    const productosParaEnviar = lineasValidas.map(l => {
+      const codigo = String(l.codigo_barras || '').trim();
+      const cantidad = Number(l.cantidad);
+      if (codigo.startsWith('9')) {
+        const cents = parseInt(codigo.slice(1), 10);
+        const precioExpress = isNaN(cents) ? 0 : cents / 100;
+        return {
+          codigo_barras: codigo,
+          cantidad,
+          precio_express: precioExpress,
+          ...(l.nombre ? { nombre_express: String(l.nombre).trim() } : {})
+        };
+      }
+      return {
+        codigo_barras: codigo,
+        cantidad
+      };
+    });
 
     if (productosParaEnviar.some(p => !p.codigo_barras || !Number.isInteger(p.cantidad) || p.cantidad <= 0)) {
       setError('Cada línea necesita un código de barras válido y cantidad entera positiva.');
@@ -337,13 +366,29 @@ export default function NewSaleModal({ onClose, onCreated }) {
                       }
                     }}
                   />
-                  {line.nombre && line.nombre !== 'Producto no encontrado' && (
-                    <div style={styles.productInfo}>
-                      <span style={styles.productName}>{line.nombre}</span>
-                      <span style={styles.productPrice}>
-                        ${toNumber(line.precio).toFixed(2)}
-                      </span>
+                  {line.esExpress ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={styles.expressBadge}>Modo Express</span>
+                        <span style={styles.productPrice}>${toNumber(line.precio).toFixed(2)}</span>
+                      </div>
+                      <input
+                        placeholder="Nombre opcional (por defecto: VENTA EXPRESS)"
+                        value={line.nombre || ''}
+                        onChange={(e) => updateLine(idx, 'nombre', e.target.value)}
+                        style={{ ...styles.input, borderStyle: 'dashed' }}
+                        disabled={loading}
+                      />
                     </div>
+                  ) : (
+                    line.nombre && line.nombre !== 'Producto no encontrado' && (
+                      <div style={styles.productInfo}>
+                        <span style={styles.productName}>{line.nombre}</span>
+                        <span style={styles.productPrice}>
+                          ${toNumber(line.precio).toFixed(2)}
+                        </span>
+                      </div>
+                    )
                   )}
                 </div>
                 
@@ -351,17 +396,17 @@ export default function NewSaleModal({ onClose, onCreated }) {
                   <input
                     type="number"
                     min={1}
-                    max={line.stock > 0 ? line.stock : undefined}
+                    max={!line.esExpress && line.stock > 0 ? line.stock : undefined}
                     value={line.cantidad}
                     onChange={e => updateLine(idx, 'cantidad', e.target.value)}
                     style={{
                       ...styles.input,
                       width: '80px',
-                      borderColor: line.stock > 0 && line.cantidad > line.stock ? '#b26a55' : '#c2a878'
+                      borderColor: (!line.esExpress && line.stock > 0 && line.cantidad > line.stock) ? '#b26a55' : '#c2a878'
                     }}
                     disabled={loading}
                   />
-                  {line.stock > 0 && (
+                  {!line.esExpress && line.stock > 0 && (
                     <div style={styles.stockInfo}>
                       <span style={
                         line.cantidad > line.stock ? styles.stockError : styles.stockOk
@@ -373,13 +418,13 @@ export default function NewSaleModal({ onClose, onCreated }) {
                 </div>
                 
                 <div style={styles.stockDisplay}>
-                  {line.stock > 0 ? (
+                  {!line.esExpress && line.stock > 0 ? (
                     <span style={
                       line.cantidad > line.stock ? styles.stockError : styles.stockOk
                     }>
                       {line.stock}
                     </span>
-                  ) : line.codigo_barras ? (
+                  ) : (!line.esExpress && line.codigo_barras) ? (
                     <span style={styles.stockError} title="Producto no encontrado o sin stock">
                       ❌
                     </span>
@@ -640,6 +685,14 @@ const styles = {
   },
   stockNeutral: {
     color: '#6b4f3b',
+  },
+  expressBadge: {
+    backgroundColor: '#2c5aa0',
+    color: 'white',
+    padding: '0.1rem 0.5rem',
+    borderRadius: '6px',
+    fontSize: '0.75rem',
+    fontWeight: 600
   },
   addButton: {
     marginTop: '0.6rem',

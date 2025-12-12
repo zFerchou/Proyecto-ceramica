@@ -88,8 +88,8 @@ export async function printTicket({
             }
 
             .barcode {
-              width: 38mm !important;
-              height: 48px !important;
+              /* Canvas size handled by JsBarcode; keep height */
+              height: 28px !important;
               margin: 0 auto;
               display: block;
             }
@@ -136,7 +136,7 @@ export async function printTicket({
 
           ${
             codigoVenta && /^\d{13}$/.test(String(codigoVenta))
-              ? `<div class="barcode-container"><canvas class="barcode"></canvas></div>`
+              ? `<div class="barcode-container"><canvas class="barcode" width="300" height="48"></canvas><div style="font-size:10px;margin-top:2px;">${codigoVenta}</div></div>`
               : ""
           }
 
@@ -209,13 +209,17 @@ export async function printTicket({
     if (/^\d{13}$/.test(code)) {
       const canvas = iframeDoc.querySelector(".barcode");
       if (canvas && iframeWin.JsBarcode) {
-        iframeWin.JsBarcode(canvas, code, {
-          format: "EAN13",
-          width: 2,
-          height: 48,
-          displayValue: false,
-          margin: 0
-        });
+        try {
+          iframeWin.JsBarcode(canvas, code, {
+            format: "EAN13",
+            width: 2,
+            height: 48,
+            displayValue: false,
+            margin: 0
+          });
+        } catch (e) {
+          console.warn('JsBarcode render failed:', e);
+        }
       }
     }
 
