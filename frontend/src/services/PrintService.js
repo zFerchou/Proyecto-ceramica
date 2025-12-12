@@ -88,8 +88,6 @@ export async function printTicket({
             }
 
             .barcode {
-              /* Canvas size handled by JsBarcode; keep height */
-              height: 28px !important;
               margin: 0 auto;
               display: block;
             }
@@ -136,7 +134,7 @@ export async function printTicket({
 
           ${
             codigoVenta && /^\d{13}$/.test(String(codigoVenta))
-              ? `<div class="barcode-container"><canvas class="barcode" width="300" height="48"></canvas><div style="font-size:10px;margin-top:2px;">${codigoVenta}</div></div>`
+              ? `<div class="barcode-container"><svg class="barcode" width="300" height="48"></svg><div style="font-size:10px;margin-top:2px;">${codigoVenta}</div></div>`
               : ""
           }
 
@@ -207,18 +205,47 @@ export async function printTicket({
 
     const code = String(codigoVenta || "");
     if (/^\d{13}$/.test(code)) {
-      const canvas = iframeDoc.querySelector(".barcode");
-      if (canvas && iframeWin.JsBarcode) {
+      const svg = iframeDoc.querySelector(".barcode");
+      let rendered = false;
+      if (svg && iframeWin.JsBarcode) {
         try {
-          iframeWin.JsBarcode(canvas, code, {
+          iframeWin.JsBarcode(svg, code, {
             format: "EAN13",
-            width: 2,
-            height: 48,
+            width: 1.2,
+            height: 38,
             displayValue: false,
             margin: 0
           });
+          rendered = true;
         } catch (e) {
           console.warn('JsBarcode render failed:', e);
+        }
+      }
+
+      // Fallback to bwip-js API image if JsBarcode is unavailable or rendering failed
+      if (!rendered) {
+        const container = iframeDoc.querySelector('.barcode-container');
+        if (container) {
+          const img = iframeDoc.createElement('img');
+          img.alt = 'EAN-13 Barcode';
+          img.style.display = 'block';
+          img.style.margin = '0 auto';
+          img.style.height = '48px';
+          img.style.width = '300px';
+          // bwip-js API parameters: bcid=ean13, includetext=false, scale=2, height=10
+          img.src = `https://bwipjs-api.metafloor.com/?bcid=ean13&text=${encodeURIComponent(code)}&includetext=false&scale=2&height=10`; 
+          // Replace the SVG placeholder with the image
+          const placeholder = container.querySelector('.barcode');
+          if (placeholder) container.replaceChild(img, placeholder);
+          else container.insertBefore(img, container.firstChild);
+          // Wait for image load before printing
+          await new Promise((resolve) => {
+            if (img.complete) resolve();
+            else {
+              img.onload = resolve;
+              img.onerror = resolve;
+            }
+          });
         }
       }
     }
