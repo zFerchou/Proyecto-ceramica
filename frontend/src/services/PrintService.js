@@ -39,7 +39,7 @@ export async function printTicket({
             }
 
             .logo {
-              width: 40px;
+              width: 120px;
               margin: 0 auto 6px auto;
               display: block;
             }
