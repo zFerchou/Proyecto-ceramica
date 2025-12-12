@@ -677,48 +677,95 @@ export const generarReporte = async (req, res) => {
     let queryParams = [fecha_inicio, fecha_fin];
     let usuarioCondition = '';
     
-    // Si no es admin, filtrar por usuario
     if (rol !== 'admin') {
       queryParams.push(usuario_id);
       usuarioCondition = 'AND vu.id_usuario = $3';
     }
 
     const totalResult = await pool.query(
-      `SELECT SUM(p.precio * tp.cantidad) AS total_vendido,
-              COUNT(DISTINCT v.id_venta) AS total_ventas
-       FROM venta v
-       JOIN venta_usuario vu ON v.id_venta = vu.id_venta
-       JOIN ticket t ON v.id_venta = t.id_venta
-       JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
-       JOIN producto p ON tp.id_producto = p.id_producto
-       WHERE v.fecha BETWEEN $1 AND $2 ${usuarioCondition}`,
+      `WITH base AS (
+         SELECT v.id_venta, v.tipo_pago, v.fecha, t.id_ticket
+         FROM venta v
+         JOIN venta_usuario vu ON v.id_venta = vu.id_venta
+         JOIN ticket t ON v.id_venta = t.id_venta
+         WHERE v.fecha BETWEEN $1 AND $2 ${usuarioCondition}
+       ),
+       inv AS (
+         SELECT b.id_venta, SUM(tp.cantidad * p.precio) AS importe
+         FROM base b
+         JOIN ticket_producto tp ON b.id_ticket = tp.id_ticket
+         JOIN producto p ON tp.id_producto = p.id_producto
+         GROUP BY b.id_venta
+       ),
+       exp AS (
+         SELECT b.id_venta, SUM(pe.cantidad * pe.precio) AS importe
+         FROM base b
+         JOIN producto_express pe ON b.id_ticket = pe.id_ticket
+         GROUP BY b.id_venta
+       )
+       SELECT COALESCE(SUM(COALESCE(inv.importe,0) + COALESCE(exp.importe,0)), 0) AS total_vendido,
+              COUNT(DISTINCT b.id_venta) AS total_ventas
+       FROM base b
+       LEFT JOIN inv ON inv.id_venta = b.id_venta
+       LEFT JOIN exp ON exp.id_venta = b.id_venta`,
       queryParams
     );
 
     const productosResult = await pool.query(
-      `SELECT p.nombre, SUM(tp.cantidad) AS total_cantidad,
-              SUM(tp.cantidad * p.precio) AS total_importe
-       FROM venta v
-       JOIN venta_usuario vu ON v.id_venta = vu.id_venta
-       JOIN ticket t ON v.id_venta = t.id_venta
-       JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
-       JOIN producto p ON tp.id_producto = p.id_producto
-       WHERE v.fecha BETWEEN $1 AND $2 ${usuarioCondition}
-       GROUP BY p.nombre
+      `WITH base AS (
+         SELECT v.id_venta, v.tipo_pago, v.fecha, t.id_ticket
+         FROM venta v
+         JOIN venta_usuario vu ON v.id_venta = vu.id_venta
+         JOIN ticket t ON v.id_venta = t.id_venta
+         WHERE v.fecha BETWEEN $1 AND $2 ${usuarioCondition}
+       )
+       SELECT nombre, SUM(total_cantidad) AS total_cantidad, SUM(total_importe) AS total_importe
+       FROM (
+         SELECT p.nombre AS nombre, SUM(tp.cantidad) AS total_cantidad,
+                SUM(tp.cantidad * p.precio) AS total_importe
+         FROM base b
+         JOIN ticket_producto tp ON b.id_ticket = tp.id_ticket
+         JOIN producto p ON tp.id_producto = p.id_producto
+         GROUP BY p.nombre
+         UNION ALL
+         SELECT pe.nombre AS nombre, SUM(pe.cantidad) AS total_cantidad,
+                SUM(pe.cantidad * pe.precio) AS total_importe
+         FROM base b
+         JOIN producto_express pe ON b.id_ticket = pe.id_ticket
+         GROUP BY pe.nombre
+       ) u
+       GROUP BY nombre
        ORDER BY total_cantidad DESC`,
       queryParams
     );
 
     const tipoPagoResult = await pool.query(
-      `SELECT v.tipo_pago, COUNT(*) AS total_ventas,
-              SUM(tp.cantidad * p.precio) AS total_importe
-       FROM venta v
-       JOIN venta_usuario vu ON v.id_venta = vu.id_venta
-       JOIN ticket t ON v.id_venta = t.id_venta
-       JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
-       JOIN producto p ON tp.id_producto = p.id_producto
-       WHERE v.fecha BETWEEN $1 AND $2 ${usuarioCondition}
-       GROUP BY v.tipo_pago
+      `WITH base AS (
+         SELECT v.id_venta, v.tipo_pago, v.fecha, t.id_ticket
+         FROM venta v
+         JOIN venta_usuario vu ON v.id_venta = vu.id_venta
+         JOIN ticket t ON v.id_venta = t.id_venta
+         WHERE v.fecha BETWEEN $1 AND $2 ${usuarioCondition}
+       ),
+       inv AS (
+         SELECT b.id_venta, SUM(tp.cantidad * p.precio) AS importe
+         FROM base b
+         JOIN ticket_producto tp ON b.id_ticket = tp.id_ticket
+         JOIN producto p ON tp.id_producto = p.id_producto
+         GROUP BY b.id_venta
+       ),
+       exp AS (
+         SELECT b.id_venta, SUM(pe.cantidad * pe.precio) AS importe
+         FROM base b
+         JOIN producto_express pe ON b.id_ticket = pe.id_ticket
+         GROUP BY b.id_venta
+       )
+       SELECT b.tipo_pago, COUNT(DISTINCT b.id_venta) AS total_ventas,
+              SUM(COALESCE(inv.importe,0) + COALESCE(exp.importe,0)) AS total_importe
+       FROM base b
+       LEFT JOIN inv ON inv.id_venta = b.id_venta
+       LEFT JOIN exp ON exp.id_venta = b.id_venta
+       GROUP BY b.tipo_pago
        ORDER BY total_ventas DESC`,
       queryParams
     );
