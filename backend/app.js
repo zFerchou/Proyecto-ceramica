@@ -41,7 +41,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use("/uploads", express.static(uploadsDir));
 
-// --- Configuración de CORS MEJORADA ---
+// --- Configuración de CORS MEJORADA Y CORREGIDA ---
 const allowedOrigins = [
   "http://localhost:3000", 
   "http://localhost:3001",
@@ -49,6 +49,7 @@ const allowedOrigins = [
   "http://20.75.243.68"
 ];
 
+// CONFIGURACIÓN CORS CORREGIDA - AÑADE Cache-Control
 app.use(cors({
   origin: function (origin, callback) {
     // En desarrollo, permitir cualquier origen
@@ -64,8 +65,15 @@ app.use(cors({
     }
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "X-Requested-With",
+    "Cache-Control",  // <-- AÑADIDO para resolver el error CORS
+    "Accept"          // <-- Opcional, pero recomendado
+  ],
+  credentials: true,
+  exposedHeaders: ["Authorization"] // <-- IMPORTANTE para tokens
 }));
 
 // --- Body parser para JSON ---

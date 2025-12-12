@@ -205,6 +205,10 @@ router.get('/verify', verifyJWT, (req, res) => {
  *                       type: string
  *                     rol:
  *                       type: string
+ *                     isAdmin:
+ *                       type: boolean
+ *                     isEmployee:
+ *                       type: boolean
  *                 message:
  *                   type: string
  *       401:
@@ -214,29 +218,56 @@ router.get('/verify', verifyJWT, (req, res) => {
  */
 router.post('/refresh', verifyJWT, (req, res) => {
   try {
-    // Crear un nuevo token con los mismos datos del usuario
+    // Normalizar rol (asegurar minúsculas)
+    const normalizedRol = req.user.rol ? req.user.rol.toLowerCase() : 'empleado';
+    
+    // Determinar flags de rol
+    const isAdmin = normalizedRol === 'admin';
+    const isEmployee = ['empleado', 'usuario', 'vendedor'].includes(normalizedRol);
+    
+    // IMPORTANTE: Crear un token COMPLETO con TODOS los campos necesarios
+    const tokenPayload = {
+      // Campos requeridos por el middleware verifyJWT
+      userId: req.user.userId,
+      id: req.user.id,
+      email: req.user.email,
+      rol: normalizedRol,           // Rol normalizado
+      nombre: req.user.nombre,
+      
+      // Campos CRÍTICOS que deben estar presentes
+      isAdmin: isAdmin,             // <-- ¡FALTABA!
+      isEmployee: isEmployee,       // <-- ¡FALTABA!
+      
+      // Timestamp de emisión
+      iat: Math.floor(Date.now() / 1000)
+    };
+
+    // Crear el token JWT
     const token = jwt.sign(
-      {
-        userId: req.user.userId,
-        id: req.user.id,
-        email: req.user.email,
-        rol: req.user.rol,
-        nombre: req.user.nombre
-      },
+      tokenPayload,
       process.env.JWT_SECRET || 'secreto_super_seguro',
-      { expiresIn: '24h' } // Renovar por 24 horas más
+      { expiresIn: '24h' }
     );
     
-    console.log(`🔄 Token renovado para: ${req.user.email}`);
+    console.log(`🔄 Token renovado para: ${req.user.email} (${normalizedRol})`);
     
+    // Respuesta completa con todos los datos del usuario
     res.json({
       success: true,
       token,
-      user: req.user,
+      user: {
+        userId: req.user.userId,
+        id: req.user.id,
+        email: req.user.email,
+        rol: normalizedRol,
+        nombre: req.user.nombre,
+        isAdmin,
+        isEmployee
+      },
       message: 'Token renovado exitosamente'
     });
   } catch (error) {
-    console.error('Error renovando token:', error);
+    console.error('❌ Error renovando token:', error);
     res.status(500).json({
       success: false,
       message: 'Error renovando token'
