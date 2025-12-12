@@ -210,20 +210,13 @@ export const obtenerVentas = async (req, res) => {
   try {
     let query = `
       SELECT DISTINCT v.id_venta, v.fecha, v.tipo_pago, t.codigo_venta,
-             u.nombre as nombre_vendedor, u.id as id_vendedor,
-             (
-               SELECT SUM(tp2.cantidad * p2.precio)
-               FROM ticket t2
-               JOIN ticket_producto tp2 ON t2.id_ticket = tp2.id_ticket
-               JOIN producto p2 ON tp2.id_producto = p2.id_producto
-               WHERE t2.id_venta = v.id_venta
-             ) as total_venta
+             u.nombre as nombre_vendedor, u.id as id_vendedor
       FROM venta v
       JOIN venta_usuario vu ON v.id_venta = vu.id_venta
       JOIN usuarios u ON vu.id_usuario = u.id
       JOIN ticket t ON v.id_venta = t.id_venta
-      JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
-      JOIN producto p ON tp.id_producto = p.id_producto
+      LEFT JOIN ticket_producto tp ON t.id_ticket = tp.id_ticket
+      LEFT JOIN producto p ON tp.id_producto = p.id_producto
     `;
     
     const conditions = [];
@@ -278,7 +271,7 @@ export const obtenerVentas = async (req, res) => {
         );
 
         const productosCombinados = [...productos.rows, ...express.rows];
-        const total = productosCombinados.reduce((sum, p) => sum + p.subtotal, 0);
+        const total = productosCombinados.reduce((sum, p) => sum + (p.subtotal || 0), 0);
 
         return { 
           ...venta, 
