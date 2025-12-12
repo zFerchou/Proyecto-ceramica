@@ -105,7 +105,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
     
     if (field === 'codigo_barras') {
       const raw = (value || '').toString();
-      const onlyDigits = raw.replace(/\D+/g, '');
+      const onlyDigits = raw.replace(/\D+/g, '').slice(0, 13);
       const producto = buscarProducto(onlyDigits);
       if (producto) {
         const stock = getStockProducto(producto);
@@ -319,6 +319,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
                     onChange={e => updateLine(idx, 'codigo_barras', e.target.value)}
                     style={styles.input}
                     disabled={loading}
+                    maxLength={13}
                     ref={el => (inputRefs.current[idx] = el)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {

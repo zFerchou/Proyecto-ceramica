@@ -63,6 +63,13 @@ export default function SalesPage() {
   const [selectedVenta, setSelectedVenta] = useState(null);
   const [undoSuccess, setUndoSuccess] = useState({ open: false, mensaje: '' });
 
+  // Restringir búsqueda a solo números (máx 13)
+  const handleQueryChange = (e) => {
+    const raw = e.target.value || '';
+    const onlyDigits = raw.replace(/\D/g, '');
+    setQuery(onlyDigits.slice(0, 13));
+  };
+
   // --- Buscar ventas
   const buscar = useCallback(async () => {
     setError(null);
@@ -71,7 +78,7 @@ export default function SalesPage() {
       let params;
       const trimmed = query.trim();
       if (trimmed) {
-        const esCodigoVenta = /^\d{8,14}$/.test(trimmed);
+        const esCodigoVenta = /^\d{13}$/.test(trimmed);
         if (esCodigoVenta) {
           params = { codigo_venta: trimmed };
         } else {
@@ -269,9 +276,11 @@ export default function SalesPage() {
       <div style={styles.searchBox}>
         <input
           style={styles.input}
-          placeholder="Buscar por nombre de producto o código de venta"
+          placeholder="Buscar por nombre o código de venta (13 dígitos)"
           value={query}
-          onChange={e => setQuery(e.target.value)}
+          onChange={handleQueryChange}
+          inputMode="numeric"
+          maxLength={13}
           onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
         />
         <button onClick={buscar} disabled={loading} style={styles.buttonSecondary}>
