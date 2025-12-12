@@ -136,7 +136,7 @@ export async function printTicket({
 
           ${
             codigoVenta && /^\d{13}$/.test(String(codigoVenta))
-              ? `<div class="barcode-container"><svg class="barcode"></svg></div>`
+              ? `<div class="barcode-container"><canvas class="barcode"></canvas></div>`
               : ""
           }
 
@@ -207,25 +207,14 @@ export async function printTicket({
 
     const code = String(codigoVenta || "");
     if (/^\d{13}$/.test(code)) {
-      const svg = iframeDoc.querySelector(".barcode");
-      if (svg && iframeWin.JsBarcode) {
-        // Generar código dejando barras tal cual (width original)
-        iframeWin.JsBarcode(svg, code, {
+      const canvas = iframeDoc.querySelector(".barcode");
+      if (canvas && iframeWin.JsBarcode) {
+        iframeWin.JsBarcode(canvas, code, {
           format: "EAN13",
-          width: 1.2,      // ← grosor de barra NO cambia
+          width: 2,
           height: 48,
           displayValue: false,
-          margin: 0,
-          flat: true       // ← permite separar espacios
-        });
-
-        // Aumentar el espacio entre barras SIN modificar su grosor
-        const paths = svg.querySelectorAll("path");
-        paths.forEach((p, index) => {
-          // Escalar solo ESPACIOS — index impar
-          if (index % 2 === 1) {
-            p.setAttribute("transform", "scale(1.15, 1)");
-          }
+          margin: 0
         });
       }
     }
