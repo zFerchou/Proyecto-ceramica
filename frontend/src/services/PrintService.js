@@ -33,8 +33,6 @@ export async function printTicket({
               box-sizing: border-box;
               overflow: hidden;
               text-align: center;
-
-              /* 👇 ESTA ES LA SOLUCIÓN REAL QUE LAS IMPRESORAS POS SÍ RESPETAN */
               padding-left: 20px !important;
             }
 
@@ -186,12 +184,23 @@ export async function printTicket({
     if (/^\d{13}$/.test(code)) {
       const svg = iframeDoc.querySelector(".barcode");
       if (svg && iframeWin.JsBarcode) {
+        // Generar código dejando barras tal cual (width original)
         iframeWin.JsBarcode(svg, code, {
           format: "EAN13",
-          width: 1.2,
+          width: 1.2,      // ← grosor de barra NO cambia
           height: 48,
           displayValue: false,
-          margin: 0
+          margin: 0,
+          flat: true       // ← permite separar espacios
+        });
+
+        // Aumentar el espacio entre barras SIN modificar su grosor
+        const paths = svg.querySelectorAll("path");
+        paths.forEach((p, index) => {
+          // Escalar solo ESPACIOS — index impar
+          if (index % 2 === 1) {
+            p.setAttribute("transform", "scale(1.15, 1)");
+          }
         });
       }
     }
