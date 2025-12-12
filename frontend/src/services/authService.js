@@ -1,4 +1,4 @@
-// services/authService.js
+// services/authService.js - VERSIÓN CORREGIDA
 const AUTH_KEY = 'app_auth_data_v1';
 
 export function setAuthData(token, user) {
@@ -72,16 +72,29 @@ export function isAuthenticated() {
     const token = String(authData.token).trim();
     if (token === 'null' || token === 'undefined' || token.length === 0) return false;
     
-    // Verificar si el token ha expirado (opcional, basado en tiempo guardado)
-    const tokenAge = Date.now() - (authData.savedAt || 0);
-    const maxAge = 23 * 60 * 60 * 1000; // 23 horas
-    if (tokenAge > maxAge) {
-      console.log('Token demasiado antiguo, limpiando autenticación');
-      logout();
-      return false;
-    }
+    // ⚠️ ¡PROBLEMA! Quita esta verificación de antigüedad
+    // El backend debe manejar la expiración del token JWT, NO el frontend
+    
+    // REMOVER ESTO:
+    // const tokenAge = Date.now() - (authData.savedAt || 0);
+    // const maxAge = 23 * 60 * 60 * 1000; // 23 horas
+    // if (tokenAge > maxAge) {
+    //   console.log('Token demasiado antiguo, limpiando autenticación');
+    //   logout();
+    //   return false;
+    // }
     
     return true;
+  } catch {
+    return false;
+  }
+}
+
+// VERSIÓN ALTERNATIVA - Solo verifica presencia, NO expiración
+export function isAuthenticatedSimple() {
+  try {
+    const token = localStorage.getItem('token');
+    return !!(token && token.trim() && token !== 'null' && token !== 'undefined');
   } catch {
     return false;
   }
@@ -159,6 +172,7 @@ const authService = {
   enterOfflineMode, 
   logout, 
   isAuthenticated,
+  isAuthenticatedSimple, // Nueva función simplificada
   getUser,
   getUserId,
   getUserRole,
