@@ -5,7 +5,22 @@ dotenv.config();
 export const verifyJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
+  // Si no hay token, verificar si es una ruta que puede continuar sin autenticación
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Permitir rutas de login y forgot-password sin token
+    const publicRoutes = [
+      '/auth/login', 
+      '/auth/forgot-username', 
+      '/auth/forgot-password',
+      '/auth/reset-password',
+      '/auth/verify-token'
+    ];
+    
+    if (publicRoutes.some(route => req.path.includes(route))) {
+      return next();
+    }
+    
+    // Para rutas que requieren token pero no lo tienen
     return res.status(401).json({ 
       success: false, 
       message: 'Token de autenticación no proporcionado. Use formato: Bearer <token>' 
@@ -41,12 +56,35 @@ export const verifyJWT = (req, res, next) => {
     
     // Agregar un flag para fácil verificación de admin
     req.user.isAdmin = decoded.rol === 'admin';
-    req.user.isEmployee = decoded.rol === 'empleado' || decoded.rol === 'usuario';
+    req.user.isEmployee = decoded.rol === 'empleado' || decoded.rol === 'usuario' || decoded.rol === 'vendedor';
     
     console.log(`🔐 Usuario autenticado: ${req.user.email} (${req.user.rol}) ID: ${req.user.userId}`);
     next();
   } catch (err) {
     console.error('Error verificando token:', err.message);
+    
+    // Para el endpoint de refresh, permitir tokens expirados
+    if (err.name === 'TokenExpiredError' && req.path === '/auth/refresh') {
+      try {
+        // Decodificar el token expirado para obtener información del usuario
+        const decoded = jwt.decode(token);
+        if (decoded && (decoded.userId || decoded.id)) {
+          req.user = {
+            userId: decoded.userId || decoded.id,
+            id: decoded.id || decoded.userId,
+            email: decoded.email,
+            rol: decoded.rol,
+            nombre: decoded.nombre,
+            isAdmin: decoded.rol === 'admin',
+            isEmployee: decoded.rol === 'empleado' || decoded.rol === 'usuario' || decoded.rol === 'vendedor'
+          };
+          console.log(`🔄 Token expirado pero válido para refresh: ${req.user.email}`);
+          return next();
+        }
+      } catch (decodeError) {
+        // Continuar con el error original
+      }
+    }
     
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ 

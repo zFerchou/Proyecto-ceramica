@@ -8,6 +8,7 @@ import {
   verifyToken,
 } from '../controllers/authController.js';
 import { verifyJWT } from '../middlewares/authMiddleware.js';
+import jwt from 'jsonwebtoken';
 const router = Router();
 
 /**
@@ -170,6 +171,77 @@ router.get('/verify', verifyJWT, (req, res) => {
     user: req.user,
     message: 'Token válido'
   });
+});
+
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     summary: "Renueva el token JWT expirado o próximo a expirar"
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "Token renovado exitosamente"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 token:
+ *                   type: string
+ *                   description: "Nuevo token JWT"
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     nombre:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     rol:
+ *                       type: string
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: "Token no válido para refresh"
+ *       500:
+ *         description: "Error interno del servidor"
+ */
+router.post('/refresh', verifyJWT, (req, res) => {
+  try {
+    // Crear un nuevo token con los mismos datos del usuario
+    const token = jwt.sign(
+      {
+        userId: req.user.userId,
+        id: req.user.id,
+        email: req.user.email,
+        rol: req.user.rol,
+        nombre: req.user.nombre
+      },
+      process.env.JWT_SECRET || 'secreto_super_seguro',
+      { expiresIn: '24h' } // Renovar por 24 horas más
+    );
+    
+    console.log(`🔄 Token renovado para: ${req.user.email}`);
+    
+    res.json({
+      success: true,
+      token,
+      user: req.user,
+      message: 'Token renovado exitosamente'
+    });
+  } catch (error) {
+    console.error('Error renovando token:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error renovando token'
+    });
+  }
 });
 
 /**

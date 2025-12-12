@@ -16,14 +16,14 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password)
-      return res.status(400).json({ error: 'Correo y contraseña requeridos' });
+      return res.status(400).json({ success: false, message: 'Correo y contraseña requeridos' });
 
     const result = await pool.query(
       'SELECT id, nombre, email, password, rol FROM usuarios WHERE email = $1',
       [email]
     );
     if (result.rows.length === 0)
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
 
     const user = result.rows[0];
 
@@ -33,7 +33,7 @@ export const login = async (req, res) => {
       : password === user.password;
 
     if (!validPassword)
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
 
     // Generar código 2FA
     const codigo2FA = Math.floor(100000 + Math.random() * 900000).toString();
@@ -55,81 +55,101 @@ export const login = async (req, res) => {
       userId: user.id,
       email: user.email,
       nombre: user.nombre,
-      rol: user.rol, // Incluir rol en la respuesta inicial
+      rol: user.rol,
     });
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
 // ======================================================
-//  VERIFICAR 2FA (segunda fase del login) - ACTUALIZADO
+//  VERIFICAR 2FA (segunda fase del login) - CORREGIDO
 // ======================================================
 export const verify2FA = async (req, res) => {
   try {
     const { userId, codigo } = req.body;
     if (!userId || !codigo)
-      return res.status(400).json({ error: 'Faltan datos' });
+      return res.status(400).json({ success: false, message: 'Faltan datos' });
 
     const registro = codigos2FA.get(String(userId));
 
     if (!registro)
-      return res.status(400).json({ error: 'No se solicitó código 2FA' });
+      return res.status(400).json({ success: false, message: 'No se solicitó código 2FA' });
 
     if (registro.expiresAt < Date.now()) {
       codigos2FA.delete(String(userId));
-      return res.status(400).json({ error: 'Código expirado' });
+      return res.status(400).json({ success: false, message: 'Código expirado' });
     }
 
     if (registro.codigo !== codigo)
-      return res.status(401).json({ error: 'Código incorrecto' });
+      return res.status(401).json({ success: false, message: 'Código incorrecto' });
 
+    // Limpiar el código usado
     codigos2FA.delete(String(userId));
 
+    // Obtener información completa del usuario
     const result = await pool.query(
       'SELECT id, nombre, email, rol FROM usuarios WHERE id = $1',
       [userId]
     );
+    
     if (result.rows.length === 0)
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
 
     const user = result.rows[0];
 
-    // **NORMALIZAR EL ROL (convertir a minúscula para consistencia)**
+    // Normalizar rol a minúsculas para consistencia
     const normalizedRol = user.rol ? user.rol.toLowerCase() : 'empleado';
+    
+    // Determinar flags de rol
+    const isAdmin = normalizedRol === 'admin';
+    const isEmployee = ['empleado', 'usuario', 'vendedor'].includes(normalizedRol);
 
-    // **CREAR TOKEN JWT CON MÁS INFORMACIÓN - ACTUALIZADO**
+    // **CREAR TOKEN JWT COMPLETO - CORREGIDO**
+    // Incluir TODOS los campos que el middleware espera
+    const tokenPayload = {
+      // Campos requeridos por el middleware verifyJWT
+      userId: user.id,           // CRÍTICO: debe existir para compatibilidad
+      id: user.id,               // CRÍTICO: duplicado para compatibilidad
+      email: user.email,
+      rol: normalizedRol,        // Normalizado a minúsculas
+      nombre: user.nombre,
+      
+      // Campos adicionales para consistencia
+      isAdmin: isAdmin,          // Flag para fácil verificación
+      isEmployee: isEmployee,    // Flag para fácil verificación
+      
+      // Información de sistema
+      iat: Math.floor(Date.now() / 1000), // Fecha de emisión
+    };
+
     const token = jwt.sign(
-      { 
-        userId: user.id,           // ID del usuario (CRÍTICO para ventas)
-        id: user.id,               // Compatibilidad con código existente
-        email: user.email,         // Email del usuario
-        rol: normalizedRol,        // Normalizado a minúscula: 'admin' o 'empleado'
-        nombre: user.nombre,       // Nombre completo del usuario
-        rolOriginal: user.rol      // Mantener el original por si acaso
-      },
+      tokenPayload,
       process.env.JWT_SECRET || 'secreto_super_seguro',
       { expiresIn: '24h' }
     );
 
-    // Enviar rol normalizado en la respuesta
-    const responseUser = {
-      id: user.id,
-      nombre: user.nombre,
-      email: user.email,
-      rol: normalizedRol
-    };
+    console.log(`✅ Token JWT generado para: ${user.email} (${normalizedRol})`);
 
+    // Respuesta al cliente
     res.json({ 
       success: true, 
-      token, 
-      user: responseUser,
+      token,
+      user: {
+        id: user.id,
+        userId: user.id,         // Incluir ambos nombres
+        nombre: user.nombre,
+        email: user.email,
+        rol: normalizedRol,
+        isAdmin,
+        isEmployee
+      },
       message: 'Autenticación exitosa'
     });
   } catch (error) {
     console.error('Error en verify2FA:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
@@ -200,7 +220,7 @@ export const forgotPassword = async (req, res) => {
       [resetToken, expiresAt, email.trim()]
     );
 
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${encodeURIComponent(resetToken)}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${encodeURIComponent(resetToken)}`;
 
     await enviarCorreo(
       email,
@@ -280,16 +300,27 @@ export const verifyToken = async (req, res) => {
     if (token.split('.').length === 3) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secreto_super_seguro');
-        // Normalizar el rol en la verificación también
+        
+        // Asegurar que tenemos todos los campos necesarios
         const normalizedRol = decoded.rol ? decoded.rol.toLowerCase() : 'empleado';
+        const isAdmin = normalizedRol === 'admin';
+        const isEmployee = ['empleado', 'usuario', 'vendedor'].includes(normalizedRol);
+        
+        // Crear respuesta completa
+        const userInfo = {
+          userId: decoded.userId || decoded.id,
+          id: decoded.id || decoded.userId,
+          email: decoded.email,
+          rol: normalizedRol,
+          nombre: decoded.nombre,
+          isAdmin,
+          isEmployee
+        };
         
         return res.json({
           success: true,
           message: 'Token válido (JWT)',
-          email: decoded.email,
-          userId: decoded.userId,
-          rol: normalizedRol,
-          nombre: decoded.nombre,
+          user: userInfo
         });
       } catch (err) {
         const msg = err.name === 'TokenExpiredError' ? 'Token expirado' : 'Token inválido';
@@ -317,4 +348,31 @@ export const verifyToken = async (req, res) => {
     console.error('Error verifyToken:', error);
     res.status(500).json({ success: false, message: 'Error al verificar el token' });
   }
+};
+
+// ======================================================
+//  FUNCIÓN AUXILIAR PARA CREAR TOKENS (Usada por /refresh)
+// ======================================================
+export const createTokenForUser = (userInfo) => {
+  // Normalizar rol
+  const normalizedRol = userInfo.rol ? userInfo.rol.toLowerCase() : 'empleado';
+  const isAdmin = normalizedRol === 'admin';
+  const isEmployee = ['empleado', 'usuario', 'vendedor'].includes(normalizedRol);
+
+  const tokenPayload = {
+    userId: userInfo.id,
+    id: userInfo.id,
+    email: userInfo.email,
+    rol: normalizedRol,
+    nombre: userInfo.nombre,
+    isAdmin,
+    isEmployee,
+    iat: Math.floor(Date.now() / 1000),
+  };
+
+  return jwt.sign(
+    tokenPayload,
+    process.env.JWT_SECRET || 'secreto_super_seguro',
+    { expiresIn: '24h' }
+  );
 };
