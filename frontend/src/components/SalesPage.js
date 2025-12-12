@@ -372,27 +372,18 @@ export default function SalesPage() {
 
             <div style={styles.summarySection}>
               <div style={styles.summaryRow}>
-                <span>Subtotal productos:</span>
+                <span>Total productos:</span>
                 <strong>
                   {formatPrice(
                     productosAgrupados.reduce((sum, producto) => sum + calculateSubtotal(producto), 0) || 0
                   )}
                 </strong>
               </div>
-              <div style={styles.summaryRow}>
-                <span>Total de la venta:</span>
-                <strong style={styles.grandTotal}>
-                  {formatPrice(totalVenta)}
-                </strong>
-              </div>
+              
             </div>
 
             <div style={styles.cardFooter}>
-              <div style={styles.totalSection}>
-                <strong style={styles.grandTotal}>
-                  Total de la venta: {formatPrice(totalVenta)}
-                </strong>
-              </div>
+              
               <button style={styles.buttonDanger} onClick={() => handleUndoClick(venta)}>
                 ⚠️ Deshacer venta
               </button>
