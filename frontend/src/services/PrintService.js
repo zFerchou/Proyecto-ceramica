@@ -167,6 +167,30 @@ export async function printTicket({
     iframeDoc.write(ticketHTML);
     iframeDoc.close();
 
+    // Wait for images (logo/barcode) to load before printing
+    function waitForImages(win) {
+      return new Promise((resolve) => {
+        const imgs = Array.from(win.document.images || []);
+        if (imgs.length === 0) {
+          resolve();
+          return;
+        }
+        let remaining = imgs.length;
+        const done = () => {
+          remaining -= 1;
+          if (remaining <= 0) resolve();
+        };
+        imgs.forEach((img) => {
+          if (img.complete) {
+            done();
+          } else {
+            img.onload = done;
+            img.onerror = done;
+          }
+        });
+      });
+    }
+
     function loadBarcodeLib(win) {
       return new Promise((resolve, reject) => {
         const script = win.document.createElement("script");
@@ -178,6 +202,7 @@ export async function printTicket({
       });
     }
 
+    await waitForImages(iframeWin);
     await loadBarcodeLib(iframeWin).catch(() => {});
 
     const code = String(codigoVenta || "");

@@ -21,6 +21,24 @@ const WebPrintDriver = {
 
       const totalHtml = data.total != null ? `<p style="font-weight:bold;">${formatLine("TOTAL:", `$${Number(data.total).toFixed(2)}`)}</p>` : "";
 
+      // If full HTML provided, print it directly
+      if (data.html) {
+        printWindow.document.write(data.html);
+        printWindow.document.close();
+        printWindow.focus();
+        // Attempt to print after load
+        const onload = function() {
+          setTimeout(function(){ printWindow.print(); setTimeout(function(){ printWindow.close(); }, 300); }, 300);
+        };
+        if (printWindow.document.readyState === 'complete') {
+          onload();
+        } else {
+          printWindow.onload = onload;
+        }
+        resolve();
+        return;
+      }
+
       printWindow.document.write(`
         <html>
         <head>
