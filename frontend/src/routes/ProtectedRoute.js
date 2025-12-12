@@ -1,8 +1,7 @@
-// components/ProtectedRoute.js
+// components/ProtectedRoute.js - VERSIÓN CORREGIDA
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import authService from '../services/authService';
-import api from '../api/api';
 
 export default function ProtectedRoute({ children, requiredRole, requiredAdmin = false }) {
   const location = useLocation();
@@ -14,49 +13,71 @@ export default function ProtectedRoute({ children, requiredRole, requiredAdmin =
     const verifyAuthentication = async () => {
       setIsLoading(true);
       
-      // Primero verificar si hay token localmente
-      const localAuth = authService.isAuthenticated();
-      const localUser = authService.getUser();
+      // SOLO verificar presencia del token, NO su validez
+      const token = localStorage.getItem('token');
       
-      if (!localAuth) {
+      if (!token) {
         setIsAuthenticated(false);
         setIsLoading(false);
         return;
       }
       
-      // Intentar verificar token con el servidor
-      try {
-        const response = await api.verifyCurrentToken();
-        if (response.success && response.user) {
-          // Actualizar datos del usuario si hay cambios
-          authService.updateUserData(response.user);
-          setUser(response.user);
-          setIsAuthenticated(true);
-        } else {
-          authService.logout();
-          setIsAuthenticated(false);
+      // Obtener usuario desde localStorage (si existe)
+      const localUser = authService.getUser();
+      
+      if (localUser) {
+        setUser(localUser);
+        setIsAuthenticated(true);
+      } else {
+        // Si no hay usuario en localStorage, verificar con backend UNA sola vez
+        try {
+          const response = await fetch('http://localhost:3000/auth/verify', {
+            headers: { 
+              'Authorization': `Bearer ${token}` 
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.user) {
+              // Guardar usuario en localStorage
+              authService.setAuthData(token, data.user);
+              setUser(data.user);
+              setIsAuthenticated(true);
+            } else {
+              setIsAuthenticated(false);
+              authService.logout();
+            }
+          } else {
+            setIsAuthenticated(false);
+            authService.logout();
+          }
+        } catch (error) {
+          console.log('Error verificando token:', error.message);
+          // En caso de error de red, permitir acceso con datos locales si existen
+          if (localUser) {
+            setUser(localUser);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
         }
-      } catch (error) {
-        console.log('Error verificando token, usando datos locales:', error.message);
-        // Si falla la verificación pero hay datos locales, permitir acceso offline
-        if (localUser) {
-          setUser(localUser);
-          setIsAuthenticated(true);
-        } else {
-          authService.logout();
-          setIsAuthenticated(false);
-        }
-      } finally {
-        setIsLoading(false);
       }
+      
+      setIsLoading(false);
     };
 
+    // Verificar SOLO al montar el componente
     verifyAuthentication();
     
-    // Verificar autenticación cada 5 minutos
-    const interval = setInterval(verifyAuthentication, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    // ⚠️ ¡¡¡REMOVER COMPLETAMENTE EL setInterval!!!
+    // El interceptor manejará los refrescos automáticos
+    // NO usar: const interval = setInterval(verifyAuthentication, 5 * 60 * 1000);
+    
+    return () => {
+      // Limpieza opcional si agregas event listeners
+    };
+  }, []); // Solo al montar, no en intervalos
 
   // Mostrar loading mientras verifica
   if (isLoading) {
