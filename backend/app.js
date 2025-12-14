@@ -14,7 +14,22 @@ import fs from "fs";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpecs } from "./docs/swagger.js";
 
-dotenv.config();
+// SOLO cargar .env si estamos en desarrollo
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+  console.log('✅ Modo desarrollo: .env cargado');
+} else {
+  console.log('✅ Modo producción: usando variables de entorno de Docker');
+}
+
+// DEBUG: Verifica las variables
+console.log('=== VARIABLES DE ENTORNO ===');
+console.log('PORT:', process.env.PORT);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_USER:', process.env.DB_USER);
+console.log('DB_NAME:', process.env.DB_NAME);
+console.log('=======================');
 
 const app = express();
 
@@ -45,6 +60,7 @@ app.use("/uploads", express.static(uploadsDir));
 const allowedOrigins = [
   "http://localhost:3000", 
   "http://localhost:3001",
+  "http://localhost:3002",
   "http://20.75.243.68:3000",
   "http://20.75.243.68"
 ];
@@ -76,6 +92,9 @@ app.use(cors({
   exposedHeaders: ["Authorization"] // <-- IMPORTANTE para tokens
 }));
 
+// Handle preflight requests - CORREGIDO (no usar app.options('*', cors()))
+// app.options('*', cors()); // <-- ESTA LÍNCA CAUSA EL ERROR, NO LA USES
+
 // --- Body parser para JSON ---
 app.use(express.json({ limit: '10mb' }));
 
@@ -90,7 +109,9 @@ app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    dbHost: process.env.DB_HOST || 'no configurado',
+    port: process.env.PORT || 'no configurado'
   });
 });
 
@@ -100,7 +121,8 @@ app.get('/', (req, res) => {
     message: 'Bienvenido al API del Sistema de Gestión de Tienda',
     documentation: '/api-docs',
     health: '/health',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    dbConnection: process.env.DB_HOST ? `Conectado a ${process.env.DB_HOST}` : 'No configurada'
   });
 });
 
@@ -178,19 +200,60 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- INICIAR EL SERVIDOR ---
-const PORT = process.env.PORT || 3000;
+// --- INICIAR EL SERVIDOR CON MANEJO MEJORADO ---
+const PORT = process.env.PORT || 5000; // Cambiado a 5000 por defecto
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🎉 Servidor corriendo en puerto ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
   console.log(`❤️  Health check: http://localhost:${PORT}/health`);
   console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗄️  Base de datos: ${process.env.DB_HOST || 'No configurada'}`);
-}).on('error', (err) => {
-  console.error('❌ Error crítico al iniciar servidor:', err);
-  process.exit(1);
+  console.log(`🔗 URL accesible desde host: http://localhost:${process.env.HOST_PORT || 3002}`);
+});
+
+// Manejar errores de puerto en uso
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Error: El puerto ${PORT} ya está en uso dentro del contenedor.`);
+    console.error('Posibles causas:');
+    console.error('1. Otro proceso Node.js está corriendo en el mismo contenedor');
+    console.error('2. Hot-reload está creando múltiples instancias');
+    console.error('3. El contenedor anterior no se cerró correctamente');
+    
+    // Intentar con puerto alternativo
+    const altPort = parseInt(PORT) + 1;
+    console.log(`🔄 Intentando con puerto alternativo: ${altPort}`);
+    
+    setTimeout(() => {
+      server.close();
+      process.env.PORT = altPort;
+      const newServer = app.listen(altPort, '0.0.0.0', () => {
+        console.log(`✅ Servidor iniciado en puerto alternativo: ${altPort}`);
+      });
+    }, 1000);
+  } else {
+    console.error('❌ Error crítico al iniciar servidor:', err);
+    process.exit(1);
+  }
+});
+
+// Manejar cierre correcto del servidor
+process.on('SIGTERM', () => {
+  console.log('SIGTERM recibido, cerrando servidor...');
+  server.close(() => {
+    console.log('Servidor cerrado');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT recibido, cerrando servidor...');
+  server.close(() => {
+    console.log('Servidor cerrado');
+    process.exit(0);
+  });
 });
 
 export default app;

@@ -1,5 +1,5 @@
 // api/loginapi.js
-export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3000';
+export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3002';
 
 // Función helper para manejar respuestas
 const handleResponse = async (response) => {

@@ -1,24 +1,49 @@
-version: '3.8'
-
 services:
-  backend:
-    image: estrellaae/backend-tienda:latest
-    env_file:
-      - .env
+  db:
+    image: postgres:16
+    container_name: ceramica-db
+    restart: always  # <-- AÑADIDO: Esto hará que la BD se inicie automáticamente
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: tienda
     ports:
-      - "5000:5000"
-    networks:
-      - app-network
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: ceramica-backend
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: 123
+      DB_NAME: tienda
+    ports:
+      - "3002:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   frontend:
-    image: estrellaae/frontend-tienda:latest
+    build: ./frontend
+    container_name: ceramica-frontend
     ports:
-      - "80:80"
-    networks:
-      - app-network
+      - "3001:80"
     depends_on:
       - backend
+    restart: unless-stopped
 
-networks:
-  app-network:
-    driver: bridge
+volumes:
+  pgdata:
