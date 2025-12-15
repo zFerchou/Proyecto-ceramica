@@ -327,7 +327,7 @@ export default function SalesPage() {
                         <strong style={styles.productName}>{producto.nombre_producto}</strong>
                         {producto.imagen_url && (
                           <img 
-                            src={`http://localhost:3000${producto.imagen_url}`} 
+                            src={`${process.env.REACT_APP_API_BASE || 'http://localhost:5000'}${producto.imagen_url}`} 
                             alt={producto.nombre_producto}
                             style={styles.productImage}
                             onError={(e) => {

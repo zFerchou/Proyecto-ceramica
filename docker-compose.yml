@@ -2,7 +2,7 @@ services:
   db:
     image: postgres:16
     container_name: ceramica-db
-    restart: always  # <-- AÑADIDO: Esto hará que la BD se inicie automáticamente
+    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123
@@ -10,7 +10,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postql/data
+      - pgdata:/var/lib/postgresql/data
       - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -19,7 +19,7 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    image: santobarro/ceramica-backend:latest  # <-- CAMBIADO: Usa Docker Hub
     container_name: ceramica-backend
     environment:
       NODE_ENV: production
@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    image: santobarro/ceramica-frontend:latest  # <-- CAMBIADO: Usa Docker Hub
     container_name: ceramica-frontend
     ports:
       - "3001:80"

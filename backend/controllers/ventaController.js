@@ -35,7 +35,7 @@ export const crearVenta = async (req, res) => {
 
   // Verificar que el usuario existe y está activo
   const userCheck = await pool.query(
-    'SELECT id, activo FROM usuarios WHERE id = $1',
+    'SELECT id, activo, nombre FROM usuarios WHERE id = $1',
     [id_usuario]
   );
   
@@ -183,6 +183,7 @@ export const crearVenta = async (req, res) => {
       codigo_venta,
       fecha,
       id_usuario,
+      nombre_vendedor: userCheck.rows[0]?.nombre || null,
       total_venta: totalVenta,
       productos: productosConPrecio
     });
