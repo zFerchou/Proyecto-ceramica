@@ -1,49 +1,49 @@
 {
   "name": "proyecto-ceramica-desktop",
   "version": "1.0.0",
-  "description": "Electron wrapper for Proyecto Ceramica (frontend + backend)",
+  "description": "Proyecto Ceramica Desktop",
   "main": "electron/main.js",
   "author": "",
   "license": "UNLICENSED",
+
   "scripts": {
-    "postinstall": "cd backend && npm install && cd .. && cd frontend && npm install && cd ..",
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
     "build:frontend": "cd frontend && npm run build",
     "dev": "npm run build:frontend && electron .",
-    "pack": "npm run build:frontend && electron-builder --dir",
     "dist": "npm run build:frontend && electron-builder --win --x64"
   },
-  "dependencies": {
-    "dotenv": "^16.4.5"
-  },
+
   "devDependencies": {
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
+
   "build": {
-  "appId": "com.proyecto.ceramica",
-  "productName": "Proyecto Ceramica",
-  "files": [
-    "electron/**/*",
-    "frontend/build/**/*"
-  ],
-  "extraResources": [
-    {
-      "from": "backend",
-      "to": "backend"
-    }
-  ],
-  "win": {
-    "target": [
+    "appId": "com.proyecto.ceramica",
+    "productName": "Proyecto Ceramica",
+
+    "files": [
+      "electron/**/*"
+    ],
+
+    "extraResources": [
       {
-        "target": "nsis",
-        "arch": ["x64"]
+        "from": "backend",
+        "to": "backend"
+      },
+      {
+        "from": "frontend/build",
+        "to": "frontend/build"
       }
-    ]
-  },
-  "nsis": {
-    "oneClick": false,
-    "perMachine": false,
-    "allowToChangeInstallationDirectory": true
+    ],
+
+    "win": {
+      "target": "nsis"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
-}
 }

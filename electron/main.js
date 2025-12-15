@@ -1,151 +1,69 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
-const http = require('http');
+const { fork } = require('child_process');
 const fs = require('fs');
 
-// ─────────────────────────────────────────────
-// 🔒 FIX 1 — BLOQUEAR MÚLTIPLES INSTANCIAS
-// ─────────────────────────────────────────────
-const gotTheLock = app.requestSingleInstanceLock();
-
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0];
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
-  });
-}
-
-// ─────────────────────────────────────────────
-// Reload SOLO en desarrollo
-// ─────────────────────────────────────────────
-if (!app.isPackaged) {
-  try {
-    require('electron-reload')(__dirname, {
-      electron: path.join(__dirname, '..', 'node_modules', '.bin', 'electron'),
-      hardResetMethod: 'exit'
-    });
-  } catch (_) {}
-}
-
+let mainWindow;
 let backendProcess;
 
-// ─────────────────────────────────────────────
-// 🕒 FIX 2 — ESPERAR BACKEND CON LÍMITE (NO LOOP)
-// ─────────────────────────────────────────────
-function waitForBackend(win, retries = 0) {
-  if (retries > 20) {
-    win.loadURL(`data:text/html,
-      <h2>Error</h2>
-      <p>No se pudo iniciar el servidor interno.</p>
-      <p>Revisa los logs o reinicia la aplicación.</p>
-    `);
-    return;
+function getBackendPath() {
+  if (!app.isPackaged) {
+    return path.join(process.cwd(), 'backend', 'server.js');
   }
 
-  http.get('http://localhost:5000/health', (res) => {
-    if (res.statusCode === 200) {
-      console.log('✅ Backend listo');
-      win.loadURL('http://localhost:5000');
-    } else {
-      setTimeout(() => waitForBackend(win, retries + 1), 500);
-    }
-  }).on('error', () => {
-    setTimeout(() => waitForBackend(win, retries + 1), 500);
-  });
+  return path.join(process.resourcesPath, 'backend', 'server.js');
 }
 
-// ─────────────────────────────────────────────
-// Crear ventana
-// ─────────────────────────────────────────────
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 1024,
-    height: 768,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-    },
-  });
-
-  waitForBackend(win);
-}
-
-// ─────────────────────────────────────────────
-// 🚀 Iniciar backend (server.js)
-// ─────────────────────────────────────────────
 function startBackend() {
-  let scriptPath;
-  let cwdPath;
+  const backendPath = getBackendPath();
 
-  if (app.isPackaged) {
-    // PRODUCCIÓN
-    scriptPath = path.join(process.resourcesPath, 'backend', 'server.js');
-    cwdPath = path.join(process.resourcesPath, 'backend');
-  } else {
-    // DESARROLLO
-    scriptPath = path.join(__dirname, '..', 'backend', 'server.js');
-    cwdPath = path.join(__dirname, '..', 'backend');
+  console.log('🚀 Backend path:', backendPath);
+
+  if (!fs.existsSync(backendPath)) {
+    throw new Error(`❌ Backend NO encontrado: ${backendPath}`);
   }
 
-  // 🔍 FIX 3 — LOGS CRÍTICOS DE RUTA
-  console.log('🚀 Iniciando backend');
-  console.log('📄 BACKEND PATH:', scriptPath);
-  console.log('📁 BACKEND EXISTS:', fs.existsSync(scriptPath));
-
-  backendProcess = spawn(process.execPath, [scriptPath], {
-    cwd: cwdPath,
+  backendProcess = fork(backendPath, [], {
     env: {
       ...process.env,
-      PORT: 5000,
-      NODE_ENV: app.isPackaged ? 'production' : 'development'
+      NODE_ENV: 'production'
     },
-    stdio: ['ignore', 'pipe', 'pipe']
+    silent: false
   });
 
-  // 🔥 FIX 5 — LOGS FORZADOS
-  backendProcess.stdout.on('data', (data) => {
-    console.log('[BACKEND]', data.toString());
+  backendProcess.on('error', (err) => {
+    console.error('❌ Backend error:', err);
   });
 
-  backendProcess.stderr.on('data', (data) => {
-    console.error('[BACKEND ERROR]', data.toString());
-  });
-
-  backendProcess.on('close', (code) => {
-    console.warn(`⚠️ Backend cerrado con código ${code}`);
+  backendProcess.on('exit', (code) => {
+    console.error('❌ Backend exited with code:', code);
   });
 }
 
-// ─────────────────────────────────────────────
-// Ciclo de vida Electron
-// ─────────────────────────────────────────────
-app.whenReady().then(() => {
-  startBackend();
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      contextIsolation: true
     }
   });
+
+  mainWindow.loadURL('http://127.0.0.1:5000');
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+app.whenReady().then(() => {
+  startBackend();
+
+  // ⏳ damos tiempo real al backend
+  setTimeout(createWindow, 2000);
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('quit', () => {
-  if (backendProcess) {
-    console.log('🛑 Cerrando backend');
-    backendProcess.kill();
-  }
+  if (backendProcess) backendProcess.kill();
+  if (process.platform !== 'darwin') app.quit();
 });

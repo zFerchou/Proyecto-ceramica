@@ -3,8 +3,9 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import swaggerUi from "swagger-ui-express";
-import { swaggerSpecs } from "./docs/swagger.js";
+
+// JWT
+import { verifyJWT } from "./middlewares/authMiddleware.js";
 
 // Rutas
 import productoRoutes from "./routes/productoRoutes.js";
@@ -23,15 +24,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ─────────────────────────────────────────────
-// Middlewares básicos
+// Middlewares base
 // ─────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    callback(null, true);
-  },
+  origin: true,
   credentials: true,
   allowedHeaders: [
     "Content-Type",
@@ -43,18 +41,19 @@ app.use(cors({
 }));
 
 // ─────────────────────────────────────────────
-// Logging simple
+// Logging
 // ─────────────────────────────────────────────
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
   next();
 });
 
 // ─────────────────────────────────────────────
-// Carpetas estáticas
+// Carpetas persistentes (fuera del asar)
 // ─────────────────────────────────────────────
-const qrDir = path.join(__dirname, "public/qr");
-const uploadsDir = path.join(__dirname, "public/uploads");
+const dataDir = path.join(process.cwd(), "data");
+const qrDir = path.join(dataDir, "qr");
+const uploadsDir = path.join(dataDir, "uploads");
 
 fs.mkdirSync(qrDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -66,68 +65,60 @@ app.use("/uploads", express.static(uploadsDir));
 // Health check
 // ─────────────────────────────────────────────
 app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    timestamp: new Date().toISOString()
-  });
+  res.json({ status: "OK" });
 });
 
 // ─────────────────────────────────────────────
-// Swagger
+// Swagger (solo DEV)
 // ─────────────────────────────────────────────
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
+if (process.env.NODE_ENV !== "production") {
+  const swaggerUi = (await import("swagger-ui-express")).default;
+  const { swaggerSpecs } = await import("./docs/swagger.js");
+
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
+}
 
 // ─────────────────────────────────────────────
-// Rutas API
+// AUTH
 // ─────────────────────────────────────────────
+app.use("/auth", authRoutes);
+
+// ─────────────────────────────────────────────
+// API protegida
+// ─────────────────────────────────────────────
+app.use("/api", verifyJWT);
 app.use("/api/productos", productoRoutes);
 app.use("/api/ventas", ventaRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/categorias", categoriaRoutes);
-app.use("/auth", authRoutes);
 
 // ─────────────────────────────────────────────
-// React build (producción)
+// FRONTEND (React build) ✅ FIX REAL
 // ─────────────────────────────────────────────
-const frontendBuildPath = path.join(__dirname, "../frontend/build");
+const frontendPath =
+  process.env.NODE_ENV === "production"
+    ? path.join(process.resourcesPath, "frontend", "build")
+    : path.join(__dirname, "..", "frontend", "build");
 
-if (fs.existsSync(frontendBuildPath)) {
-  app.use(express.static(frontendBuildPath));
+console.log("📦 Frontend path:", frontendPath);
 
-  app.use((req, res, next) => {
-    if (
-      req.path.startsWith("/api") ||
-      req.path.startsWith("/auth") ||
-      req.path.startsWith("/qr") ||
-      req.path.startsWith("/uploads")
-    ) {
-      return next();
-    }
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
 
-    res.sendFile(path.join(frontendBuildPath, "index.html"));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(frontendPath, "index.html"));
   });
+} else {
+  console.error("❌ Frontend build NO encontrado");
 }
 
 // ─────────────────────────────────────────────
-// 404
-// ─────────────────────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({
-    error: "Ruta no encontrada",
-    path: req.path
-  });
-});
-
-// ─────────────────────────────────────────────
-// Error handler global
+// Error handler
 // ─────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error("💥 Error:", err);
-  res.status(500).json({
-    error: "Internal Server Error"
-  });
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
-// 🚨 AQUÍ TERMINA app.js
 export default app;
