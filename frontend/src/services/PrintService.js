@@ -13,27 +13,50 @@ export async function printTicket({
   mensaje,
   tienda,
   logoUrl,
-  codigoVenta
+  codigoVenta,
+  vendedor,
+  fechaHora,
+  direccion
 }) {
   try {
+    const rawCode = String(codigoVenta || "").trim();
+
+    // Determinar tipo de código
+    let barcodeImgHTML = "";
+    if (rawCode) {
+      const isEAN13 = /^\d{12,13}$/.test(rawCode);
+      const bcid = isEAN13 ? "ean13" : "code128";
+
+      barcodeImgHTML = `
+        <div class="barcode-container">
+          <img
+            src="https://bwipjs-api.metafloor.com/?bcid=${bcid}&text=${encodeURIComponent(
+              rawCode
+            )}&includetext=false&scale=3&height=10"
+            class="barcode-img"
+          />
+          <div class="barcode-text">${rawCode}</div>
+        </div>
+      `;
+    }
+
     const ticketHTML = `
       <html>
         <head>
+          <meta charset="utf-8" />
           <style>
             @page {
-              margin: 0 !important;
+              margin: 0;
             }
 
             body {
               font-family: monospace;
               font-size: 12px;
-              width: 42mm !important;
+              width: 42mm;
               margin: 0;
-              padding: 0;
+              padding: 0 6px;
               box-sizing: border-box;
-              overflow: hidden;
               text-align: center;
-              padding-left: 20px !important;
             }
 
             .logo {
@@ -45,70 +68,72 @@ export async function printTicket({
             .title {
               font-size: 14px;
               font-weight: bold;
-              word-break: break-word;
-              text-align: center;
             }
 
             .product {
-              width: 100%;
-              display: block;
               margin: 2px 0;
             }
 
             .item {
               display: flex;
               justify-content: space-between;
-              width: 100%;
               font-size: 12px;
-              margin-top: 1px;
-              white-space: nowrap;
-            }
-
-            .total {
-              margin-top: 8px;
-              font-size: 14px;
-              font-weight: bold;
-              text-align: right;
-              width: 100%;
-            }
-
-            .footer {
-              margin-top: 10px;
-              word-break: break-word;
-              font-size: 11px;
-              width: 100%;
-              text-align: center;
-            }
-
-            .barcode-container {
-              text-align: center;
-              width: 100%;
-              margin-top: 6px;
-              margin-bottom: 4px;
-            }
-
-            .barcode {
-              margin: 0 auto;
-              display: block;
             }
 
             hr {
               border: none;
               border-top: 1px dashed #000;
               margin: 6px 0;
+            }
+
+            .total {
+              font-size: 14px;
+              font-weight: bold;
+              text-align: right;
+            }
+
+            .meta {
+              font-size: 11px;
+              text-align: left;
+              margin-top: 6px;
+            }
+
+            .meta-row {
+              display: flex;
+              justify-content: space-between;
+            }
+
+            .barcode-container {
+              margin-top: 8px;
+              text-align: center;
+            }
+
+            .barcode-img {
+              display: block;
+              margin: 0 auto;
               width: 100%;
+              max-width: 220px;
+            }
+
+            .barcode-text {
+              font-size: 10px;
+              margin-top: 2px;
+            }
+
+            .footer {
+              font-size: 11px;
+              margin-top: 8px;
             }
           </style>
         </head>
 
         <body>
-
-          ${logoUrl ? `<img class="logo" src="${logoUrl}"/>` : ""}
+          ${logoUrl ? `<img class="logo" src="${logoUrl}" />` : ""}
 
           <div class="title">${tienda}</div>
           <div class="title">${titulo}</div>
 
-          <hr/>
+          <hr />
 
           ${items
             .map(
@@ -124,26 +149,40 @@ export async function printTicket({
             )
             .join("")}
 
-          <hr/>
+          <hr />
 
           <div class="total">TOTAL: $${total.toFixed(2)}</div>
 
-          <hr/>
+          <hr />
 
-          <div>Venta: ${codigoVenta || ""}</div>
+          <div class="meta">
+            <div class="meta-row">
+              <span><strong>Venta:</strong></span>
+              <span>${rawCode}</span>
+            </div>
+            <div class="meta-row">
+              <span><strong>Vendedor:</strong></span>
+              <span>${vendedor || "No especificado"}</span>
+            </div>
+            <div class="meta-row">
+              <span><strong>Fecha:</strong></span>
+              <span>${fechaHora || new Date().toLocaleString()}</span>
+            </div>
+            ${
+              direccion
+                ? `<div class="meta-row"><span><strong>Dirección:</strong></span><span>${direccion}</span></div>`
+                : ""
+            }
+          </div>
 
-          ${
-            codigoVenta && /^\d{13}$/.test(String(codigoVenta))
-              ? `<div class="barcode-container"><svg class="barcode" width="300" height="48"></svg><div style="font-size:10px;margin-top:2px;">${codigoVenta}</div></div>`
-              : ""
-          }
+          ${barcodeImgHTML}
 
           <div class="footer">${mensaje}</div>
-
         </body>
       </html>
     `;
 
+    // Si hay driver nativo (Electron / POS)
     if (driver && typeof driver.print === "function") {
       return driver.print({ html: ticketHTML });
     }
@@ -151,110 +190,41 @@ export async function printTicket({
     // Fallback web
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.style.visibility = "hidden";
+    iframe.style.width = "300px";
+    iframe.style.height = "600px";
+    iframe.style.left = "-10000px";
+    iframe.style.top = "0";
 
     document.body.appendChild(iframe);
 
-    const iframeWin = iframe.contentWindow;
-    const iframeDoc = iframeWin.document;
-
+    const iframeDoc = iframe.contentWindow.document;
     iframeDoc.open();
     iframeDoc.write(ticketHTML);
     iframeDoc.close();
 
-    // Wait for images (logo/barcode) to load before printing
-    function waitForImages(win) {
-      return new Promise((resolve) => {
-        const imgs = Array.from(win.document.images || []);
-        if (imgs.length === 0) {
-          resolve();
-          return;
+    // Esperar a que carguen imágenes (logo + barcode)
+    await new Promise((resolve) => {
+      const imgs = iframeDoc.images;
+      if (!imgs.length) return resolve();
+
+      let loaded = 0;
+      [...imgs].forEach((img) => {
+        if (img.complete) {
+          loaded++;
+          if (loaded === imgs.length) resolve();
+        } else {
+          img.onload = img.onerror = () => {
+            loaded++;
+            if (loaded === imgs.length) resolve();
+          };
         }
-        let remaining = imgs.length;
-        const done = () => {
-          remaining -= 1;
-          if (remaining <= 0) resolve();
-        };
-        imgs.forEach((img) => {
-          if (img.complete) {
-            done();
-          } else {
-            img.onload = done;
-            img.onerror = done;
-          }
-        });
       });
-    }
+    });
 
-    function loadBarcodeLib(win) {
-      return new Promise((resolve, reject) => {
-        const script = win.document.createElement("script");
-        script.src =
-          "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        win.document.head.appendChild(script);
-      });
-    }
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
 
-    await waitForImages(iframeWin);
-    await loadBarcodeLib(iframeWin).catch(() => {});
-
-    const code = String(codigoVenta || "");
-    if (/^\d{13}$/.test(code)) {
-      const svg = iframeDoc.querySelector(".barcode");
-      let rendered = false;
-      if (svg && iframeWin.JsBarcode) {
-        try {
-          iframeWin.JsBarcode(svg, code, {
-            format: "EAN13",
-            width: 1.2,
-            height: 38,
-            displayValue: false,
-            margin: 0
-          });
-          rendered = true;
-        } catch (e) {
-          console.warn('JsBarcode render failed:', e);
-        }
-      }
-
-      // Fallback to bwip-js API image if JsBarcode is unavailable or rendering failed
-      if (!rendered) {
-        const container = iframeDoc.querySelector('.barcode-container');
-        if (container) {
-          const img = iframeDoc.createElement('img');
-          img.alt = 'EAN-13 Barcode';
-          img.style.display = 'block';
-          img.style.margin = '0 auto';
-          img.style.height = '48px';
-          img.style.width = '300px';
-          // bwip-js API parameters: bcid=ean13, includetext=false, scale=2, height=10
-          img.src = `https://bwipjs-api.metafloor.com/?bcid=ean13&text=${encodeURIComponent(code)}&includetext=false&scale=2&height=10`; 
-          // Replace the SVG placeholder with the image
-          const placeholder = container.querySelector('.barcode');
-          if (placeholder) container.replaceChild(img, placeholder);
-          else container.insertBefore(img, container.firstChild);
-          // Wait for image load before printing
-          await new Promise((resolve) => {
-            if (img.complete) resolve();
-            else {
-              img.onload = resolve;
-              img.onerror = resolve;
-            }
-          });
-        }
-      }
-    }
-
-    iframeWin.focus();
-    iframeWin.print();
-
-    setTimeout(() => document.body.removeChild(iframe), 800);
-
+    setTimeout(() => document.body.removeChild(iframe), 1000);
   } catch (error) {
     console.error("Error en printTicket:", error);
     throw error;

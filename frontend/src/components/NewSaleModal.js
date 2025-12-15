@@ -14,6 +14,7 @@ export default function NewSaleModal({ onClose, onCreated }) {
   const [productosVendidos, setProductosVendidos] = useState([]);
   const [productos, setProductos] = useState([]);
   const inputRefs = useRef([]);
+  const ticketPrintedRef = useRef(false);
 
   // Cargar productos al abrir el modal - CORREGIDO
   useEffect(() => {
@@ -295,6 +296,11 @@ export default function NewSaleModal({ onClose, onCreated }) {
 
       const logoBase64 = await loadImageBase64(logo).catch(() => null);
 
+      // Datos adicionales para el ticket
+      const vendedor = ventaRegistrada?.nombre_vendedor || localStorage.getItem('nombre') || localStorage.getItem('username') || '';
+      const fechaHora = ventaRegistrada?.fecha ? new Date(ventaRegistrada.fecha).toLocaleString() : new Date().toLocaleString();
+      const direccion = 'Av José Alfredo 91-c';
+
       await printTicket({
         titulo: 'Comprobante de Venta',
         items,
@@ -303,12 +309,81 @@ export default function NewSaleModal({ onClose, onCreated }) {
         tienda: 'Santo Barro',
         logoUrl: logoBase64 || null,
         codigoVenta: String(codigoVenta || ''),
+        vendedor,
+        fechaHora,
+        direccion,
       });
     } catch (err) {
       console.error('Error al imprimir ticket:', err);
       setError('No se pudo imprimir el ticket: ' + (err?.message || 'Error desconocido'));
     }
   }
+
+  // Impresión automática del ticket al registrar la venta (una sola vez)
+  useEffect(() => {
+    if (!ventaRegistrada) return;
+    if (ticketPrintedRef.current) return;
+
+    ticketPrintedRef.current = true;
+
+    (async () => {
+      try {
+        const lineasValidas = lines.filter(line => line.codigo_barras);
+        const total = calcularTotalVenta(lineasValidas);
+
+        const items = lineasValidas.map((p) => ({
+          nombre: (p.nombre || '').toString(),
+          cantidad: toNumber(p.cantidad),
+          precio: toNumber(p.precio),
+          total: toNumber(p.precio) * toNumber(p.cantidad),
+        }));
+
+        const codigoVenta =
+          ventaRegistrada?.codigo_venta ||
+          ventaRegistrada?.id ||
+          '';
+
+        async function loadImageBase64(url) {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+
+        const logoBase64 = await loadImageBase64(logo).catch(() => null);
+
+        const vendedor =
+          ventaRegistrada?.nombre_vendedor ||
+          localStorage.getItem('nombre') ||
+          localStorage.getItem('username') ||
+          '';
+
+        const fechaHora = ventaRegistrada?.fecha
+          ? new Date(ventaRegistrada.fecha).toLocaleString()
+          : new Date().toLocaleString();
+
+        const direccion = 'Av José Alfredo 91-c';
+
+        await printTicket({
+          titulo: 'Comprobante de Venta',
+          items,
+          total,
+          mensaje: 'Gracias por su compra',
+          tienda: 'Santo Barro',
+          logoUrl: logoBase64 || null,
+          codigoVenta: String(codigoVenta),
+          vendedor,
+          fechaHora,
+          direccion,
+        });
+      } catch (err) {
+        console.error('Error en impresión automática:', err);
+      }
+    })();
+  }, [ventaRegistrada]);
 
   return (
     <div style={styles.overlay}>

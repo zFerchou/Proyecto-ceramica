@@ -1,4 +1,4 @@
-export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3002';
+export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
 
 // Variables para el sistema de cola de requests
 let isRefreshing = false;
