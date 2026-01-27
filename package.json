@@ -1,0 +1,49 @@
+{
+  "name": "proyecto-ceramica-desktop",
+  "version": "1.0.0",
+  "description": "Proyecto Ceramica Desktop",
+  "main": "electron/main.js",
+  "author": "",
+  "license": "UNLICENSED",
+
+  "scripts": {
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
+    "build:frontend": "cd frontend && npm run build",
+    "dev": "npm run build:frontend && electron .",
+    "dist": "npm run build:frontend && electron-builder --win --x64"
+  },
+
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+
+  "build": {
+    "appId": "com.proyecto.ceramica",
+    "productName": "Proyecto Ceramica",
+
+    "files": [
+      "electron/**/*"
+    ],
+
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend"
+      },
+      {
+        "from": "frontend/build",
+        "to": "frontend/build"
+      }
+    ],
+
+    "win": {
+      "target": "nsis"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

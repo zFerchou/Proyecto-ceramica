@@ -1,36 +1,124 @@
 import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+
+// JWT
+import { verifyJWT } from "./middlewares/authMiddleware.js";
+
+// Rutas
 import productoRoutes from "./routes/productoRoutes.js";
-import ventaRoutes from './routes/ventaRoutes.js';
-import swaggerUi from "swagger-ui-express";
-import { swaggerSpecs } from "./docs/swagger.js";
+import ventaRoutes from "./routes/ventaRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import usuarioRoutes from "./routes/usuarioRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import categoriaRoutes from "./routes/categoriaRoutes.js";
 
 const app = express();
 
-// Body parser for JSON. We attach a custom error handler below to intercept parse errors
-app.use(express.json());
+// ─────────────────────────────────────────────
+// __dirname en ES Modules
+// ─────────────────────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Swagger
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
+// ─────────────────────────────────────────────
+// Middlewares base
+// ─────────────────────────────────────────────
+app.use(express.json({ limit: "10mb" }));
 
-// Rutas
-app.use("/api/productos", productoRoutes);
-app.use('/ventas', ventaRoutes);
+app.use(cors({
+  origin: true,
+  credentials: true,
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Cache-Control",
+    "Accept"
+  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+}));
 
-// Middleware para interceptar errores de parseo JSON y devolver JSON legible
-app.use((err, req, res, next) => {
-	if (err && err.type === 'entity.parse.failed') {
-		// body-parser/express setea err.type para errores de parseo JSON
-		console.error('JSON parse error:', err.message);
-		return res.status(400).json({ error: 'JSON inválido en el body', detail: 'Asegúrate de que cadenas y claves estén entre comillas dobles. Por ejemplo: "nombre": "Taza"' });
-	}
-	// Delegar a siguiente handler si no es un error de parseo
-	next(err);
+// ─────────────────────────────────────────────
+// Logging
+// ─────────────────────────────────────────────
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
+  next();
 });
 
-// Handler de errores final (para evitar devolver HTML con stack traces)
+// ─────────────────────────────────────────────
+// Carpetas persistentes (fuera del asar)
+// ─────────────────────────────────────────────
+const dataDir = path.join(process.cwd(), "data");
+const qrDir = path.join(dataDir, "qr");
+const uploadsDir = path.join(dataDir, "uploads");
+
+fs.mkdirSync(qrDir, { recursive: true });
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+app.use("/qr", express.static(qrDir));
+app.use("/uploads", express.static(uploadsDir));
+
+// ─────────────────────────────────────────────
+// Health check
+// ─────────────────────────────────────────────
+app.get("/health", (req, res) => {
+  res.json({ status: "OK" });
+});
+
+// ─────────────────────────────────────────────
+// Swagger (solo DEV)
+// ─────────────────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  const swaggerUi = (await import("swagger-ui-express")).default;
+  const { swaggerSpecs } = await import("./docs/swagger.js");
+
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
+}
+
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+app.use("/auth", authRoutes);
+
+// ─────────────────────────────────────────────
+// API protegida
+// ─────────────────────────────────────────────
+app.use("/api", verifyJWT);
+app.use("/api/productos", productoRoutes);
+app.use("/api/ventas", ventaRoutes);
+app.use("/api/usuarios", usuarioRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/categorias", categoriaRoutes);
+
+// ─────────────────────────────────────────────
+// FRONTEND (React build) ✅ FIX REAL
+// ─────────────────────────────────────────────
+const frontendPath =
+  process.env.NODE_ENV === "production"
+    ? path.join(process.resourcesPath, "frontend", "build")
+    : path.join(__dirname, "..", "frontend", "build");
+
+console.log("📦 Frontend path:", frontendPath);
+
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(frontendPath, "index.html"));
+  });
+} else {
+  console.error("❌ Frontend build NO encontrado");
+}
+
+// ─────────────────────────────────────────────
+// Error handler
+// ─────────────────────────────────────────────
 app.use((err, req, res, next) => {
-	console.error('Unhandled error:', err && err.stack ? err.stack : err);
-	res.status(500).json({ error: 'Internal Server Error' });
+  console.error("💥 Error:", err);
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 export default app;

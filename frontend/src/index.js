@@ -1,3 +1,4 @@
+import '../src/initApi.js'; // Inicializa el sistema de autenticación
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';

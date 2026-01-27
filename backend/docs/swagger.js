@@ -9,6 +9,9 @@ export const swaggerOptions = {
       version: "1.0.0",
       description: "APIs",
     },
+    servers: [
+      { url: "http://localhost:3000/api", description: "Local API" }
+    ],
   },
   apis: ["./routes/*.js"],
 };
